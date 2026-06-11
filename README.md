@@ -55,7 +55,7 @@ country distance × vehicle consumption × local fuel price
 
 Then all country costs are combined into a final trip estimate.
 
-## Planned Tech Stack
+## Tech Stack
 
 ### Backend
 
@@ -70,14 +70,44 @@ Then all country costs are combined into a final trip estimate.
 
 ### Frontend
 
-* React or Next.js
+* React
+* Vite
 
 ### Database
 
 * PostgreSQL
 * PostGIS planned for accurate route/country boundary calculations
+* In-memory/mock mode for the current MVP
 
-## Planned API
+## Run
+
+Start the API:
+
+```powershell
+dotnet restore FuelCalculator.sln --configfile NuGet.Config
+dotnet build FuelCalculator.sln
+dotnet run --project src\FuelCalculator.Api\FuelCalculator.Api.csproj --urls http://localhost:5124
+```
+
+Start the frontend in another terminal:
+
+```powershell
+cd frontend
+npm.cmd install
+npm.cmd run dev
+```
+
+Open `http://127.0.0.1:5173`. Vite proxies `/api` to `http://localhost:5124`.
+
+## Test
+
+```powershell
+dotnet run --project tests\FuelCalculator.Tests\FuelCalculator.Tests.csproj
+cd frontend
+npm.cmd run build
+```
+
+## API
 
 Main endpoint:
 
@@ -137,17 +167,24 @@ Future providers:
 * Global fuel price APIs
 * Country-specific GCC fuel price adapters
 
-## MVP Scope
+## Implemented MVP Scope
 
-The first version should focus on:
+The current version includes:
 
 * Manual origin/destination input
+* Optional waypoint and Google Maps link fields
 * Manual vehicle consumption input
 * Fuel type selection
 * Manual/static fuel prices
 * Trip fuel cost calculation
 * Per-country cost breakdown
 * Clean backend interfaces for future live data integrations
+* Mock route provider for local development without API keys
+* Google Routes provider interface/adapter
+* Approximate polyline country segmentation
+* Static currency conversion
+* Basic in-memory vehicle profile storage
+* Optional tank size and current fuel input for refuel-stop estimation
 
 ## Future Improvements
 
@@ -164,5 +201,5 @@ The first version should focus on:
 
 ## Status
 
-Early planning / MVP design stage.
+MVP implemented with a provider-based backend, React UI, mock/local mode, and unit/integration-style tests.
 
