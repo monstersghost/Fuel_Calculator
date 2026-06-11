@@ -1,3 +1,4 @@
+
 # Cross-Border Trip Fuel Cost Calculator
 
 A small app for estimating fuel usage and trip cost across borders.
@@ -44,3 +45,124 @@ The app uses the following basic formula:
 ```text
 fuel needed = distance km × fuel consumption L/100km ÷ 100
 cost = fuel needed × price per liter
+````
+
+For cross-border trips, the route is split by country:
+
+```text
+country distance × vehicle consumption × local fuel price
+```
+
+Then all country costs are combined into a final trip estimate.
+
+## Planned Tech Stack
+
+### Backend
+
+* .NET 8
+* ASP.NET Core Web API
+* Provider-based architecture for:
+
+  * Route calculation
+  * Fuel prices
+  * Currency conversion
+  * Vehicle data
+
+### Frontend
+
+* React or Next.js
+
+### Database
+
+* PostgreSQL
+* PostGIS planned for accurate route/country boundary calculations
+
+## Planned API
+
+Main endpoint:
+
+```http
+POST /api/trips/estimate
+```
+
+Example response:
+
+```json
+{
+  "totalDistanceKm": 1270.5,
+  "normalizedConsumptionLPer100Km": 8.5,
+  "totalFuelLiters": 108.0,
+  "outputCurrency": "KWD",
+  "totalCost": 32.4,
+  "segments": [
+    {
+      "countryCode": "KW",
+      "distanceKm": 120.0,
+      "fuelType": "GASOLINE_95",
+      "fuelLiters": 10.2,
+      "pricePerLiter": 0.105,
+      "priceCurrency": "KWD",
+      "localCost": 1.071,
+      "convertedCost": 1.071,
+      "priceSource": "Manual"
+    }
+  ],
+  "warnings": []
+}
+```
+
+## Fuel Consumption Conversion
+
+Internally, all fuel consumption values are normalized to `L/100 km`.
+
+```text
+L/100km = input value
+km/L    = 100 / input value
+US MPG  = 235.214583 / input value
+UK MPG  = 282.480936 / input value
+```
+
+## Fuel Price Sources
+
+The app is designed to support multiple fuel price providers.
+
+Initial MVP providers:
+
+* Manual fuel price input
+* Static seed fuel prices for development
+
+Future providers:
+
+* Official country fuel price sources
+* Global fuel price APIs
+* Country-specific GCC fuel price adapters
+
+## MVP Scope
+
+The first version should focus on:
+
+* Manual origin/destination input
+* Manual vehicle consumption input
+* Fuel type selection
+* Manual/static fuel prices
+* Trip fuel cost calculation
+* Per-country cost breakdown
+* Clean backend interfaces for future live data integrations
+
+## Future Improvements
+
+* Google Routes API integration
+* Google Maps link import
+* Automatic country segmentation
+* Live fuel price provider integration
+* Currency exchange API integration
+* Saved vehicle profiles
+* Saved trips
+* Refuel stop estimation
+* Station-level fuel planning
+* EV charging support
+
+## Status
+
+Early planning / MVP design stage.
+
