@@ -90,18 +90,19 @@ function App() {
     const routeStops = stops
       .map((stop) => formatRouteStop(stop))
       .filter(Boolean);
+    const hasGoogleMapsLink = form.googleMapsLink.trim().length > 0;
 
-    if (routeStops.length < 2) {
+    if (!hasGoogleMapsLink && routeStops.length < 2) {
       setError('At least two route stops are required.');
       setLoading(false);
       return;
     }
 
     const payload = {
-      origin: routeStops[0],
-      destination: routeStops[routeStops.length - 1],
+      origin: hasGoogleMapsLink ? null : routeStops[0],
+      destination: hasGoogleMapsLink ? null : routeStops[routeStops.length - 1],
       googleMapsLink: form.googleMapsLink || null,
-      waypoints: routeStops.slice(1, -1),
+      waypoints: hasGoogleMapsLink ? [] : routeStops.slice(1, -1),
       fuelType: form.fuelType,
       consumptionValue: Number(form.consumptionValue),
       consumptionUnit: form.consumptionUnit,
