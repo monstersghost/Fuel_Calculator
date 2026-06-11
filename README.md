@@ -107,6 +107,17 @@ cd frontend
 npm.cmd run build
 ```
 
+## Documentation
+
+Project documentation follows the same lightweight structure used by the GaragePos repo:
+
+- `docs/adr/` - architecture decision records
+- `docs/handoff/` - current state and backlog
+- `docs/ops/` - test and deployment checklists
+- `docs/releases/` - release notes
+
+Start with `docs/README.md` and `docs/handoff/STATE.md` when picking up the project.
+
 ## API
 
 Main endpoint:
