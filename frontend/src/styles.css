@@ -412,6 +412,11 @@ tbody tr:last-child td {
   color: #166534;
 }
 
+.converted-cell {
+  color: #0f766e;
+  font-weight: 800;
+}
+
 @media (max-width: 1080px) {
   .workspace,
   .metric-grid {

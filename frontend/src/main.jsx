@@ -17,7 +17,7 @@ const consumptionUnits = [
   { value: 'UK_MPG', label: 'UK MPG' },
 ];
 
-const currencies = ['KWD', 'SAR', 'AED', 'QAR', 'BHD', 'OMR', 'USD'];
+const currencies = ['KWD', 'SAR', 'AED', 'QAR', 'BHD', 'OMR', 'USD', 'EUR', 'JOD', 'SYP'];
 
 const initialForm = {
   googleMapsLink: '',
@@ -40,7 +40,7 @@ function App() {
   const [form, setForm] = React.useState(initialForm);
   const [stops, setStops] = React.useState(initialStops);
   const [manualPrices, setManualPrices] = React.useState([
-    { countryCode: 'KW', fuelType: 'GASOLINE_95', pricePerLiter: '', currency: 'KWD' },
+    createManualPrice({ countryCode: 'KW', fuelType: 'GASOLINE_95', pricePerLiter: '', currency: 'KWD' }),
   ]);
   const [result, setResult] = React.useState(null);
   const [error, setError] = React.useState('');
@@ -59,7 +59,7 @@ function App() {
   function addManualPrice() {
     setManualPrices((current) => [
       ...current,
-      { countryCode: '', fuelType: form.fuelType, pricePerLiter: '', currency: form.outputCurrency },
+      createManualPrice({ countryCode: '', fuelType: form.fuelType, pricePerLiter: '', currency: form.outputCurrency }),
     ]);
   }
 
@@ -251,7 +251,7 @@ function App() {
 
           <div className="manual-list">
             {manualPrices.map((price, index) => (
-              <div className="manual-row" key={`${index}-${price.countryCode}`}>
+              <div className="manual-row" key={price.id}>
                 <TextField
                   label="Country"
                   value={price.countryCode}
@@ -404,7 +404,7 @@ function Results({ result }) {
               <th>Liters</th>
               <th>Price</th>
               <th>Local cost</th>
-              <th>Converted</th>
+              <th>Converted ({result.outputCurrency})</th>
               <th>Source</th>
             </tr>
           </thead>
@@ -420,7 +420,9 @@ function Results({ result }) {
                     : `${formatMoney(segment.pricePerLiter)} ${segment.priceCurrency}/L`}
                 </td>
                 <td>{segment.localCost == null ? '-' : `${formatMoney(segment.localCost)} ${segment.priceCurrency}`}</td>
-                <td>{segment.convertedCost == null ? '-' : `${formatMoney(segment.convertedCost)} ${result.outputCurrency}`}</td>
+                <td className="converted-cell">
+                  {segment.convertedCost == null ? '-' : `${formatMoney(segment.convertedCost)} ${result.outputCurrency}`}
+                </td>
                 <td>
                   <span className={segment.isUserProvided ? 'source-badge manual' : 'source-badge'}>
                     {segment.priceSource ?? 'Missing'}
@@ -462,6 +464,21 @@ function formatMoney(value) {
   }
 
   return Number(value).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
+function createManualPrice(overrides = {}) {
+  const id = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
+
+  return {
+    id,
+    countryCode: '',
+    fuelType: 'GASOLINE_95',
+    pricePerLiter: '',
+    currency: 'KWD',
+    ...overrides,
+  };
 }
 
 function formatRouteStop(stop) {

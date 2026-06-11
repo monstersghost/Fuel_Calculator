@@ -41,6 +41,10 @@ builder.Services.AddSingleton<IRouteCountrySegmenter>(sp =>
         new RouteSegmentationOptions { SampleEveryKm = sampleEveryKm });
 });
 builder.Services.AddSingleton<IGoogleMapsLinkParser, GoogleMapsLinkParser>();
+builder.Services.AddHttpClient<IGoogleMapsLinkResolver, GoogleMapsLinkResolver>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddSingleton<IVehicleProfileRepository, InMemoryVehicleProfileRepository>();
 builder.Services.AddSingleton<IVehicleDataProvider, NullVehicleDataProvider>();
 builder.Services.AddHttpClient<GoogleRoutesProvider>();
@@ -80,6 +84,9 @@ app.MapGet("/api/consumption-units", () => ConsumptionUnitCatalog.All.Select(uni
     displayName = ConsumptionUnitCatalog.GetDisplayName(unit)
 }));
 
+app.MapGet("/api/fuel-prices/seed", ([FromServices] StaticSeedFuelPriceProvider provider) =>
+    Results.Ok(provider.ListPrices()));
+
 app.MapGet("/api/vehicle-profiles", async (
     [FromServices] IVehicleProfileRepository repository,
     CancellationToken cancellationToken) =>
@@ -117,16 +124,24 @@ app.MapPost("/api/trips/estimate", async (
     [FromServices] StaticSeedFuelPriceProvider seedFuelPriceProvider,
     [FromServices] ICurrencyConverter currencyConverter,
     [FromServices] IGoogleMapsLinkParser mapsLinkParser,
+    [FromServices] IGoogleMapsLinkResolver mapsLinkResolver,
     [FromServices] TripFuelCostCalculator calculator,
     CancellationToken cancellationToken) =>
 {
     var warnings = new List<string>();
-    var errors = ValidateTripRequest(request, mapsLinkParser, warnings, out var normalizedRequest);
+    var validation = await ValidateTripRequestAsync(
+        request,
+        mapsLinkParser,
+        mapsLinkResolver,
+        warnings,
+        cancellationToken);
 
-    if (errors.Count > 0 || normalizedRequest is null)
+    if (validation.Errors.Count > 0 || validation.NormalizedRequest is null)
     {
-        return Results.BadRequest(new { errors, warnings });
+        return Results.BadRequest(new { errors = validation.Errors, warnings });
     }
+
+    var normalizedRequest = validation.NormalizedRequest;
 
     RouteResult route;
 
@@ -170,13 +185,13 @@ app.MapPost("/api/trips/estimate", async (
 
 app.Run();
 
-static IReadOnlyList<string> ValidateTripRequest(
+static async Task<TripRequestValidationResult> ValidateTripRequestAsync(
     EstimateTripRequest request,
     IGoogleMapsLinkParser mapsLinkParser,
+    IGoogleMapsLinkResolver mapsLinkResolver,
     List<string> warnings,
-    out NormalizedTripRequest? normalized)
+    CancellationToken cancellationToken)
 {
-    normalized = null;
     var errors = new List<string>();
     var origin = Clean(request.Origin);
     var destination = Clean(request.Destination);
@@ -187,19 +202,29 @@ static IReadOnlyList<string> ValidateTripRequest(
 
     if (!string.IsNullOrWhiteSpace(request.GoogleMapsLink))
     {
-        if (mapsLinkParser.TryParse(request.GoogleMapsLink, out var parsed))
-        {
-            origin ??= Clean(parsed.Origin);
-            destination ??= Clean(parsed.Destination);
+        var linkToParse = request.GoogleMapsLink;
 
-            if (waypoints.Count == 0)
-            {
-                waypoints.AddRange(parsed.Waypoints.Where(waypoint => !string.IsNullOrWhiteSpace(waypoint)));
-            }
-        }
-        else
+        try
         {
-            warnings.Add("Google Maps link could not be parsed; enter origin and destination manually.");
+            linkToParse = await mapsLinkResolver.ResolveAsync(request.GoogleMapsLink, cancellationToken) ?? request.GoogleMapsLink;
+        }
+        catch
+        {
+            warnings.Add("Google Maps short link could not be expanded; enter route stops manually or paste a full Google Maps directions URL.");
+        }
+
+        if (mapsLinkParser.TryParse(linkToParse, out var parsed))
+        {
+            origin = Clean(parsed.Origin);
+            destination = Clean(parsed.Destination);
+            waypoints = parsed.Waypoints
+                .Where(waypoint => !string.IsNullOrWhiteSpace(waypoint))
+                .Select(waypoint => waypoint.Trim())
+                .ToList();
+        }
+        else if (!warnings.Any(warning => warning.StartsWith("Google Maps", StringComparison.OrdinalIgnoreCase)))
+        {
+            warnings.Add("Google Maps link could not be parsed; enter route stops manually or paste a full Google Maps directions URL.");
         }
     }
 
@@ -273,12 +298,12 @@ static IReadOnlyList<string> ValidateTripRequest(
 
     if (errors.Count > 0 || origin is null || destination is null)
     {
-        return errors;
+        return new TripRequestValidationResult(errors, null);
     }
 
     var normalizedConsumption = ConsumptionConverter.ToLPer100Km(request.ConsumptionValue, consumptionUnit);
 
-    normalized = new NormalizedTripRequest(
+    var normalized = new NormalizedTripRequest(
         origin,
         destination,
         waypoints,
@@ -289,7 +314,7 @@ static IReadOnlyList<string> ValidateTripRequest(
         request.CurrentFuelPercentage,
         manualPrices);
 
-    return errors;
+    return new TripRequestValidationResult(errors, normalized);
 }
 
 static IReadOnlyList<string> ValidateVehicleProfile(VehicleProfileRequest request, out VehicleProfileDraft? draft)
@@ -352,3 +377,7 @@ internal sealed record NormalizedTripRequest(
     double? TankSizeLiters,
     double? CurrentFuelPercentage,
     IReadOnlyList<ManualFuelPriceOverride> ManualFuelPrices);
+
+internal sealed record TripRequestValidationResult(
+    IReadOnlyList<string> Errors,
+    NormalizedTripRequest? NormalizedRequest);

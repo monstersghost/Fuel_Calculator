@@ -88,6 +88,12 @@ public sealed class StaticSeedFuelPriceProvider : IFuelPriceProvider
         return Task.FromResult<FuelPriceQuote?>(quote);
     }
 
+    public IReadOnlyList<FuelPriceQuote> ListPrices() =>
+        _prices.Values
+            .OrderBy(quote => quote.CountryCode)
+            .ThenBy(quote => quote.FuelType)
+            .ToArray();
+
     private static FuelPriceQuote Seed(
         string countryCode,
         FuelType fuelType,

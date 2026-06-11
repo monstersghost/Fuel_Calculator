@@ -16,7 +16,10 @@ public sealed class StaticCurrencyConverter : ICurrencyConverter
             ["QAR"] = 0.0844m,
             ["BHD"] = 0.8150m,
             ["OMR"] = 0.7990m,
-            ["USD"] = 0.3075m
+            ["USD"] = 0.3075m,
+            ["EUR"] = 0.3560m,
+            ["JOD"] = 0.4337m,
+            ["SYP"] = 0.000023m
         };
     }
 
