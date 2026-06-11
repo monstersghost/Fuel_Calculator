@@ -61,7 +61,7 @@ public sealed class GoogleMapsLinkParser : IGoogleMapsLinkParser
         parsed = new ParsedRouteInput(null, null, []);
         var pathParts = uri.AbsolutePath
             .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(Uri.UnescapeDataString)
+            .Select(part => Uri.UnescapeDataString(part.Replace('+', ' ')))
             .ToArray();
         var dirIndex = Array.FindIndex(pathParts, part => part.Equals("dir", StringComparison.OrdinalIgnoreCase));
 
@@ -72,7 +72,11 @@ public sealed class GoogleMapsLinkParser : IGoogleMapsLinkParser
 
         var routeParts = pathParts
             .Skip(dirIndex + 1)
-            .Where(part => !part.StartsWith('@') && !part.StartsWith("data=", StringComparison.OrdinalIgnoreCase))
+            .Where(part =>
+                !part.StartsWith('@')
+                && !part.StartsWith("data=", StringComparison.OrdinalIgnoreCase)
+                && !part.StartsWith("am=", StringComparison.OrdinalIgnoreCase)
+                && !part.Contains('!'))
             .ToArray();
 
         if (routeParts.Length < 2)

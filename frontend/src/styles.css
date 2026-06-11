@@ -154,6 +154,65 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
 }
 
+.route-builder {
+  display: grid;
+  gap: 8px;
+}
+
+.stop-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 34px 40px;
+  gap: 8px;
+  align-items: center;
+}
+
+.stop-rail {
+  display: grid;
+  min-height: 90px;
+  place-items: center;
+  color: #59677a;
+}
+
+.stop-row:first-child .stop-rail {
+  color: #172033;
+}
+
+.stop-row:last-of-type .stop-rail {
+  color: #dc2626;
+}
+
+.stop-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(140px, 0.75fr);
+  gap: 8px;
+}
+
+.stop-search {
+  color: #0f766e;
+}
+
+.stop-remove {
+  align-self: center;
+}
+
+.add-stop-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: fit-content;
+  min-height: 38px;
+  border: 0;
+  background: transparent;
+  color: #4b5a6d;
+  padding: 0 0 0 2px;
+  font-weight: 800;
+}
+
+.add-stop-button:hover {
+  color: #0f766e;
+}
+
 .manual-header {
   display: flex;
   align-items: center;
@@ -372,8 +431,15 @@ tbody tr:last-child td {
 
   .field-grid,
   .field-grid.three,
-  .manual-row {
+  .manual-row,
+  .stop-row,
+  .stop-fields {
     grid-template-columns: 1fr;
+  }
+
+  .stop-rail,
+  .stop-search {
+    display: none;
   }
 
   .icon-button.remove {

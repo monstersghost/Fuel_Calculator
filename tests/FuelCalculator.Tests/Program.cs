@@ -15,7 +15,9 @@ var tests = new List<(string Name, Func<Task> Test)>
     ("Country segments aggregate by country", TestPerCountryAggregation),
     ("Manual price override takes precedence", TestManualOverridePrecedence),
     ("Missing fuel price returns warning", TestMissingFuelPriceWarning),
-    ("Mock route and seed prices integration works", TestMockRouteIntegration)
+    ("Mock route and seed prices integration works", TestMockRouteIntegration),
+    ("Mock Syria route does not fall back to Doha", TestMockSyriaRoute),
+    ("Google Maps full directions path parses stops", TestGoogleMapsPathParser)
 };
 
 var failures = new List<string>();
@@ -173,6 +175,40 @@ static async Task TestMockRouteIntegration()
     AssertTrue(result.TotalFuelLiters > 0, "Fuel total should be positive.");
     AssertTrue(result.Warnings.Any(warning => warning.Contains("approximate", StringComparison.OrdinalIgnoreCase)));
     AssertTrue(result.FuelStops is not null, "Tank size should produce a fuel stop estimate.");
+}
+
+static async Task TestMockSyriaRoute()
+{
+    var routeProvider = new MockRouteProvider();
+    var route = await routeProvider.GetRouteAsync(new RouteRequest(
+        "Kuwait City",
+        "Al Nabk, Syria",
+        ["Hafar Al Batin Saudi Arabia", "Al Hadithah Saudi Arabia"]));
+    var segmenter = new PolylineCountrySegmenter(
+        new StaticBoundingBoxCountryResolver(),
+        new RouteSegmentationOptions { SampleEveryKm = 25d });
+    var segmentation = await segmenter.SegmentAsync(route);
+    var countries = segmentation.Segments.Select(segment => segment.CountryCode).ToArray();
+
+    AssertTrue(route.Points.Last().Latitude > 33d, "Syria route should end north of Jordan/Saudi, not in Doha.");
+    AssertTrue(countries.Contains("SY"), "Syria route should include a Syria segment.");
+    AssertTrue(!countries.Contains("QA"), "Syria route should not include Qatar/Doha fallback.");
+}
+
+static Task TestGoogleMapsPathParser()
+{
+    var parser = new GoogleMapsLinkParser();
+    var parsedOk = parser.TryParse(
+        "https://www.google.com/maps/dir/Home/Hafar+Al+Batin+Saudi+Arabia/Al+Hadithah+Saudi+Arabia/Al+Nabk,+Syria/@31.0,37.0,6z/data=!4m2",
+        out var parsed);
+
+    AssertTrue(parsedOk, "Full Google Maps directions path should parse.");
+    AssertEqual("Home", parsed.Origin);
+    AssertEqual("Al Nabk, Syria", parsed.Destination);
+    AssertEqual(2, parsed.Waypoints.Count);
+    AssertEqual("Hafar Al Batin Saudi Arabia", parsed.Waypoints[0]);
+    AssertEqual("Al Hadithah Saudi Arabia", parsed.Waypoints[1]);
+    return Task.CompletedTask;
 }
 
 static async Task<TripEstimateResult> CalculateAsync(

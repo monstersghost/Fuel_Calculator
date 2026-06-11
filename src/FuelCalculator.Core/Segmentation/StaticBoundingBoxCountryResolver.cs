@@ -11,6 +11,8 @@ public sealed class StaticBoundingBoxCountryResolver : ICountryResolver
         new("BH", 25.5, 26.5, 50.2, 50.9),
         new("AE", 22.4, 26.5, 51.4, 56.7),
         new("OM", 16.0, 26.6, 52.0, 60.5),
+        new("SY", 32.0, 37.6, 35.6, 42.4),
+        new("JO", 29.1, 33.4, 34.8, 39.4),
         new("SA", 16.0, 32.5, 34.0, 56.8)
     ];
 

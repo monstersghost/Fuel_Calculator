@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { Calculator, CircleDollarSign, Fuel, MapPinned, Plus, Route, Trash2 } from 'lucide-react';
+import { Calculator, Circle, CircleDollarSign, Fuel, GripVertical, MapPin, MapPinned, Plus, Route, Search, Trash2 } from 'lucide-react';
 import './styles.css';
 
 const fuelTypes = [
@@ -20,10 +20,7 @@ const consumptionUnits = [
 const currencies = ['KWD', 'SAR', 'AED', 'QAR', 'BHD', 'OMR', 'USD'];
 
 const initialForm = {
-  origin: 'Kuwait City',
-  destination: 'Doha, Qatar',
   googleMapsLink: '',
-  waypointsText: '',
   fuelType: 'GASOLINE_95',
   consumptionValue: '8.5',
   consumptionUnit: 'L_PER_100KM',
@@ -32,8 +29,16 @@ const initialForm = {
   currentFuelPercentage: '100',
 };
 
+const initialStops = [
+  { label: 'Home', coordinates: '' },
+  { label: 'Hafar Al Batin Saudi Arabia', coordinates: '' },
+  { label: 'Al Hadithah Saudi Arabia', coordinates: '' },
+  { label: 'Al Nabk, Syria', coordinates: '' },
+];
+
 function App() {
   const [form, setForm] = React.useState(initialForm);
+  const [stops, setStops] = React.useState(initialStops);
   const [manualPrices, setManualPrices] = React.useState([
     { countryCode: 'KW', fuelType: 'GASOLINE_95', pricePerLiter: '', currency: 'KWD' },
   ]);
@@ -62,20 +67,41 @@ function App() {
     setManualPrices((current) => current.filter((_, priceIndex) => priceIndex !== index));
   }
 
+  function updateStop(index, field, value) {
+    setStops((current) =>
+      current.map((stop, stopIndex) => (stopIndex === index ? { ...stop, [field]: value } : stop)),
+    );
+  }
+
+  function addStop() {
+    setStops((current) => [...current, { label: '', coordinates: '' }]);
+  }
+
+  function removeStop(index) {
+    setStops((current) => current.filter((_, stopIndex) => stopIndex !== index));
+  }
+
   async function submitEstimate(event) {
     event.preventDefault();
     setLoading(true);
     setError('');
     setResult(null);
 
+    const routeStops = stops
+      .map((stop) => formatRouteStop(stop))
+      .filter(Boolean);
+
+    if (routeStops.length < 2) {
+      setError('At least two route stops are required.');
+      setLoading(false);
+      return;
+    }
+
     const payload = {
-      origin: form.origin,
-      destination: form.destination,
+      origin: routeStops[0],
+      destination: routeStops[routeStops.length - 1],
       googleMapsLink: form.googleMapsLink || null,
-      waypoints: form.waypointsText
-        .split('\n')
-        .map((waypoint) => waypoint.trim())
-        .filter(Boolean),
+      waypoints: routeStops.slice(1, -1),
       fuelType: form.fuelType,
       consumptionValue: Number(form.consumptionValue),
       consumptionUnit: form.consumptionUnit,
@@ -128,19 +154,23 @@ function App() {
       <section className="workspace">
         <form className="panel form-panel" onSubmit={submitEstimate}>
           <SectionTitle icon={<Route size={18} />} title="Route" />
-          <div className="field-grid">
-            <TextField label="Origin" value={form.origin} onChange={(value) => updateField('origin', value)} />
-            <TextField label="Destination" value={form.destination} onChange={(value) => updateField('destination', value)} />
+          <div className="route-builder">
+            {stops.map((stop, index) => (
+              <StopRow
+                key={index}
+                index={index}
+                stopCount={stops.length}
+                stop={stop}
+                canRemove={stops.length > 2}
+                onChange={updateStop}
+                onRemove={removeStop}
+              />
+            ))}
+            <button className="add-stop-button" type="button" onClick={addStop}>
+              <Plus size={18} />
+              Add destination
+            </button>
           </div>
-          <label className="field">
-            <span>Waypoints</span>
-            <textarea
-              value={form.waypointsText}
-              onChange={(event) => updateField('waypointsText', event.target.value)}
-              rows={3}
-              placeholder="One waypoint per line"
-            />
-          </label>
           <TextField
             label="Google Maps link"
             value={form.googleMapsLink}
@@ -278,6 +308,39 @@ function App() {
   );
 }
 
+function StopRow({ index, stopCount, stop, canRemove, onChange, onRemove }) {
+  const isLast = index === stopCount - 1;
+
+  return (
+    <div className="stop-row">
+      <div className="stop-rail" aria-hidden="true">
+        {index === 0 ? <Circle size={15} /> : isLast ? <MapPin size={17} /> : <Circle size={15} />}
+        <GripVertical size={16} />
+      </div>
+      <div className="stop-fields">
+        <input
+          value={stop.label}
+          onChange={(event) => onChange(index, 'label', event.target.value)}
+          placeholder={index === 0 ? 'Origin' : 'Destination or waypoint'}
+          aria-label={`Route stop ${index + 1}`}
+        />
+        <input
+          value={stop.coordinates}
+          onChange={(event) => onChange(index, 'coordinates', event.target.value)}
+          placeholder="GPS: 29.3759,47.9774"
+          aria-label={`Route stop ${index + 1} GPS coordinates`}
+        />
+      </div>
+      <Search className="stop-search" size={20} aria-hidden="true" />
+      {canRemove ? (
+        <button className="icon-button remove stop-remove" type="button" onClick={() => onRemove(index)} aria-label="Remove stop">
+          <Trash2 size={17} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function SectionTitle({ icon, title }) {
   return (
     <div className="section-title">
@@ -399,6 +462,17 @@ function formatMoney(value) {
   }
 
   return Number(value).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
+function formatRouteStop(stop) {
+  const label = stop.label.trim();
+  const coordinates = stop.coordinates.trim();
+
+  if (label && coordinates) {
+    return `${label} | ${coordinates}`;
+  }
+
+  return label || coordinates;
 }
 
 createRoot(document.getElementById('root')).render(<App />);
