@@ -130,7 +130,9 @@ public sealed record TripEstimateResult(
     FuelStopEstimate? FuelStops,
     bool IsTotalComplete,
     IReadOnlyList<string> CountriesMissingPrice,
-    double? DurationMinutes);
+    double? DurationMinutes,
+    FuelCalculator.Core.Planning.RefuelPlan? RefuelPlan = null,
+    decimal? RefuelSaving = null);
 
 public sealed record ParsedRouteInput(
     string? Origin,

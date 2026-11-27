@@ -1,6 +1,7 @@
 using FuelCalculator.Core.Currency;
 using FuelCalculator.Core.Domain;
 using FuelCalculator.Core.Fuel;
+using FuelCalculator.Core.Planning;
 
 namespace FuelCalculator.Core.Calculation;
 
@@ -22,6 +23,7 @@ public sealed class TripFuelCostCalculator
         var outputCurrency = NormalizeCurrency(input.OutputCurrency);
         var segments = AggregateByCountry(input.CountrySegments);
         var segmentCosts = new List<TripSegmentCost>();
+        var refuelPrices = new Dictionary<string, RefuelPrice>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var segment in segments)
         {
@@ -37,6 +39,21 @@ public sealed class TripFuelCostCalculator
                 {
                     pricedFuelType = substitute;
                     warnings.Add($"{FuelTypeCatalog.GetDisplayName(input.FuelType)} is not sold in {segment.CountryCode}; priced as {FuelTypeCatalog.GetDisplayName(substitute)}.");
+                }
+            }
+
+            if (quote is null)
+            {
+                foreach (var nearest in CountryCatalog.NearestPetrolGrades(input.FuelType))
+                {
+                    quote = await fuelPriceProvider.GetPriceAsync(segment.CountryCode, nearest, cancellationToken);
+
+                    if (quote is not null)
+                    {
+                        pricedFuelType = nearest;
+                        warnings.Add($"No {FuelTypeCatalog.GetDisplayName(input.FuelType)} price for {segment.CountryCode}; used the {FuelTypeCatalog.GetDisplayName(nearest)} price as an estimate.");
+                        break;
+                    }
                 }
             }
 
@@ -60,6 +77,14 @@ public sealed class TripFuelCostCalculator
                 {
                     convertedCost = RoundMoney(conversion.Amount);
                 }
+
+                var perLiter = await currencyConverter.ConvertAsync(quote.PricePerLiter, quote.Currency, outputCurrency, cancellationToken);
+                refuelPrices[segment.CountryCode] = new RefuelPrice(
+                    segment.CountryCode,
+                    quote.PricePerLiter,
+                    quote.Currency,
+                    perLiter is null ? null : Math.Round(perLiter.Amount, 6, MidpointRounding.AwayFromZero),
+                    quote.SourceName);
             }
 
             segmentCosts.Add(new TripSegmentCost(
@@ -84,6 +109,34 @@ public sealed class TripFuelCostCalculator
             .Where(segment => segment.ConvertedCost is null)
             .Select(segment => segment.CountryCode)
             .ToArray();
+        RefuelPlan? refuelPlan = null;
+        decimal? refuelSaving = null;
+
+        if (fuelStops is not null)
+        {
+            refuelPlan = RefuelPlanner.Plan(new RefuelPlanInput(
+                totalDistance,
+                input.NormalizedConsumptionLPer100Km,
+                fuelStops.TankSizeLiters,
+                fuelStops.StartingFuelPercentage,
+                fuelStops.ReservePercentage,
+                VirtualRefuelCandidates.FromSegments(input.CountrySegments),
+                refuelPrices));
+
+            refuelPlan = refuelPlan with
+            {
+                Warnings =
+                [
+                    "Fuel stops are placed along the route by country; real station locations are not checked yet.",
+                    .. refuelPlan.Warnings
+                ]
+            };
+
+            if (refuelPlan.IsComplete && refuelPlan.IsFeasible && countriesMissingPrice.Length == 0)
+            {
+                refuelSaving = RoundMoney(totalCost - refuelPlan.TripFuelCost);
+            }
+        }
 
         return new TripEstimateResult(
             RoundDouble(totalDistance),
@@ -96,7 +149,9 @@ public sealed class TripFuelCostCalculator
             fuelStops,
             countriesMissingPrice.Length == 0,
             countriesMissingPrice,
-            input.DurationMinutes is { } minutes ? RoundDouble(minutes) : null);
+            input.DurationMinutes is { } minutes ? RoundDouble(minutes) : null,
+            refuelPlan,
+            refuelSaving);
     }
 
     private static IReadOnlyList<CountryRouteSegment> AggregateByCountry(IReadOnlyList<CountryRouteSegment> segments)

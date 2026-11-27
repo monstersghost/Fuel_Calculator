@@ -1,8 +1,12 @@
 # Fuel Calculator: review and improvement proposal
 
 Date: 2026-11-27. Scope: fuel stops, border crossings and a better way to get prices.
-Status: proposal. Step 1 (C2–C8 and the hygiene items) is done on branch `fix/correctness-pass`
-(2026-11-27). C1 and steps 2–6 are open.
+Status: proposal. On branch `fix/correctness-pass` (2026-11-27):
+- Step 1 (C2–C8 and the hygiene items) is done.
+- C1 is done: the refuel planner, using virtual stations.
+- A refreshed, sourced seed table is done.
+
+Open: real station data (OSM), border crossings, and the dated price table with staleness checks.
 
 ## 1. What the app is today
 

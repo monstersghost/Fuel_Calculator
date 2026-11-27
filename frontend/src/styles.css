@@ -309,6 +309,107 @@ textarea:focus {
   font-weight: 700;
 }
 
+.metric-note.positive {
+  color: #14534d;
+}
+
+.notice.subtle {
+  border: 1px solid #d9e0e8;
+  background: #f7f9fb;
+  color: #475569;
+  font-weight: 600;
+}
+
+.refuel-plan {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #cad7e2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.refuel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.refuel-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.refuel-head span,
+.refuel-empty,
+.refuel-sum {
+  margin: 0;
+  color: #607086;
+  font-size: 0.88rem;
+}
+
+.refuel-stops {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.refuel-stops li {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  border-left: 3px solid #14534d;
+  border-radius: 6px;
+  background: #edf7f5;
+  padding: 10px 12px;
+}
+
+.refuel-where,
+.refuel-what,
+.refuel-cost {
+  display: grid;
+  gap: 4px;
+}
+
+.refuel-what span,
+.refuel-cost span {
+  color: #475569;
+  font-size: 0.84rem;
+}
+
+.refuel-cost {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.country-chip {
+  justify-self: start;
+  border-radius: 999px;
+  background: #14534d;
+  padding: 1px 8px;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+@media (max-width: 760px) {
+  .refuel-stops li {
+    grid-template-columns: 1fr;
+  }
+
+  .refuel-cost {
+    text-align: left;
+  }
+}
+
 .grade-note {
   display: block;
   color: #607086;

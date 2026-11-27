@@ -2,6 +2,7 @@ using FuelCalculator.Core.Calculation;
 using FuelCalculator.Core.Currency;
 using FuelCalculator.Core.Domain;
 using FuelCalculator.Core.Fuel;
+using FuelCalculator.Core.Planning;
 using FuelCalculator.Core.Routing;
 using FuelCalculator.Core.Segmentation;
 
@@ -20,15 +21,29 @@ var tests = new List<(string Name, Func<Task> Test)>
     ("Google Maps full directions path parses stops", TestGoogleMapsPathParser),
     ("C3 missing price marks total incomplete", TestMissingPriceMarksTotalIncomplete),
     ("C4 manual price without currency uses country currency", TestManualPriceDefaultsToCountryCurrency),
-    ("C5 seed prices report their real date, not startup time", TestSeedFetchedAtIsSeedDate),
+    ("C5 seed prices report when they were checked, not startup time", TestSeedFetchedAtIsSeedDate),
     ("C6 route duration is returned", TestDurationIsReturned),
-    ("C7 98 Octane in Saudi is priced as 95 with a note", TestUnsoldGradeFallsBack),
+    ("C7 98 Octane in Qatar is priced as 95 with a note", TestUnsoldGradeFallsBack),
     ("C8 refuel stops keep a reserve", TestRefuelStopsKeepReserve),
     ("Short-link resolver rejects redirects off Google", TestResolverRejectsNonGoogleRedirect),
     ("C2 border towns resolve to the right country", TestBorderTownsResolve),
     ("C2 a point on the King Fahd Causeway snaps to SA or BH", TestCausewaySnapsToNearestCountry),
     ("C2 open sea far from land is unknown", TestOpenSeaIsUnknown),
-    ("C2 Kuwait to Syria bills Saudi km to Saudi, not Jordan", TestKuwaitSyriaSplit)
+    ("C2 Kuwait to Syria bills Saudi km to Saudi, not Jordan", TestKuwaitSyriaSplit),
+    ("Seed carries November 2026 UAE prices from the Fuel Price Committee", TestSeedUaeNovember2026),
+    ("Seed covers every route country with a petrol price", TestSeedCoversRouteCountries),
+    ("Saudi 98 is now sold and priced", TestSaudi98IsPriced),
+    ("A sold grade with no price uses the nearest priced grade", TestUnpricedGradeUsesNearestPriced),
+    ("New Syrian pound converts at about 115 to the dollar", TestNewSyrianPoundRate),
+    ("Planner fills up at the last cheap station before the border", TestPlannerFillsBeforeBorder),
+    ("Planner makes no stop when the tank reaches the destination", TestPlannerNoStopWhenInRange),
+    ("Planner buys only enough to reach cheaper fuel", TestPlannerBuysJustEnough),
+    ("Planner respects a per-fill litre cap", TestPlannerRespectsCap),
+    ("Planner flags a gap longer than the usable range", TestPlannerFlagsGap),
+    ("Planner trip cost is purchases plus start fuel minus fuel left", TestPlannerTripCost),
+    ("Virtual stations include the last point before and first after each border", TestVirtualStationsAtBorders),
+    ("Virtual stations near Oman's borders carry the 30 litre cap", TestVirtualStationsOmanCap),
+    ("Estimate includes a refuel plan and saving when a tank size is given", TestEstimateIncludesPlan)
 };
 
 var failures = new List<string>();
@@ -245,7 +260,7 @@ static async Task TestSeedFetchedAtIsSeedDate()
 {
     var quote = await new StaticSeedFuelPriceProvider().GetPriceAsync("KW", FuelType.GASOLINE_95);
 
-    AssertEqual(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), quote!.FetchedAt);
+    AssertEqual(new DateTimeOffset(2026, 11, 27, 0, 0, 0, TimeSpan.Zero), quote!.FetchedAt);
 }
 
 static async Task TestDurationIsReturned()
@@ -264,15 +279,15 @@ static async Task TestDurationIsReturned()
 static async Task TestUnsoldGradeFallsBack()
 {
     var result = await new TripFuelCostCalculator().CalculateAsync(
-        new TripFuelCostInput([new CountryRouteSegment("SA", 100d)], FuelType.GASOLINE_98, 10d, "SAR", null, null),
+        new TripFuelCostInput([new CountryRouteSegment("QA", 100d)], FuelType.GASOLINE_98, 10d, "QAR", null, null),
         new StaticSeedFuelPriceProvider(),
         new StaticCurrencyConverter());
 
     var segment = result.Segments.Single();
     AssertEqual(FuelType.GASOLINE_95, segment.FuelType);
-    AssertEqual(23.300m, segment.LocalCost);
+    AssertEqual(21.000m, segment.LocalCost);
     AssertTrue(result.IsTotalComplete, "A substituted grade still gives a complete total.");
-    AssertTrue(result.Warnings.Any(w => w.Contains("not sold in SA", StringComparison.Ordinal)), "Expected a substitution note.");
+    AssertTrue(result.Warnings.Any(w => w.Contains("not sold in QA", StringComparison.Ordinal)), "Expected a substitution note.");
 }
 
 static async Task TestRefuelStopsKeepReserve()
@@ -352,6 +367,206 @@ static async Task TestKuwaitSyriaSplit()
     AssertEqual("KW,SA,JO,SY", string.Join(",", segmentation.Segments.Select(segment => segment.CountryCode)));
     AssertTrue(km["SA"] > 900d, $"Hafar Al Batin to Al Hadithah is Saudi; got {km["SA"]:0} km of SA.");
     AssertTrue(km["JO"] < 200d, $"Only the Al Omari to Jaber stretch is Jordan; got {km["JO"]:0} km of JO.");
+}
+
+static async Task TestSeedUaeNovember2026()
+{
+    var quote = await new StaticSeedFuelPriceProvider().GetPriceAsync("AE", FuelType.GASOLINE_95);
+
+    AssertEqual(4.04m, quote!.PricePerLiter);
+    AssertEqual("AED", quote.Currency);
+    AssertEqual(new DateOnly(2026, 11, 1), quote.EffectiveDate);
+    AssertEqual(ConfidenceLevel.HIGH, quote.Confidence);
+    AssertTrue(quote.SourceName.StartsWith("Seed", StringComparison.Ordinal), "Seed quotes say they are seed data.");
+}
+
+static async Task TestSeedCoversRouteCountries()
+{
+    var seed = new StaticSeedFuelPriceProvider();
+
+    foreach (var country in new[] { "KW", "SA", "AE", "QA", "BH", "OM", "JO", "SY", "IQ", "LB", "EG" })
+    {
+        var quote = await seed.GetPriceAsync(country, FuelType.GASOLINE_95);
+        AssertTrue(quote is not null, $"No seed 95 Octane price for {country}.");
+    }
+}
+
+static async Task TestSaudi98IsPriced()
+{
+    var quote = await new StaticSeedFuelPriceProvider().GetPriceAsync("SA", FuelType.GASOLINE_98);
+
+    AssertEqual(5.09m, quote!.PricePerLiter);
+}
+
+static async Task TestUnpricedGradeUsesNearestPriced()
+{
+    // Iraq sells regular petrol, but the only 2026 figure found is for 95.
+    var result = await new TripFuelCostCalculator().CalculateAsync(
+        new TripFuelCostInput([new CountryRouteSegment("IQ", 100d)], FuelType.GASOLINE_91, 10d, "IQD", null, null),
+        new StaticSeedFuelPriceProvider(),
+        new StaticCurrencyConverter());
+
+    var segment = result.Segments.Single();
+    AssertEqual(FuelType.GASOLINE_95, segment.FuelType);
+    AssertTrue(result.IsTotalComplete, "An estimated grade still gives a complete total.");
+    AssertTrue(result.Warnings.Any(w => w.Contains("No 91 Octane price for IQ", StringComparison.Ordinal)), "Expected an estimate note.");
+}
+
+static async Task TestNewSyrianPoundRate()
+{
+    var conversion = await new StaticCurrencyConverter().ConvertAsync(115m, "SYP", "USD");
+
+    AssertTrue(conversion!.Amount is > 0.95m and < 1.05m, $"115 SYP should be about 1 USD, got {conversion.Amount}.");
+}
+
+// Shared planner scenario: 50 L tank, 10 L/100km (0.1 L/km), 10% reserve (5 L, 450 km usable range).
+static RefuelPlanInput PlannerInput(
+    double distanceKm,
+    double startPercent,
+    IReadOnlyList<RefuelCandidate> candidates,
+    params (string Country, decimal Price)[] prices) =>
+    new(
+        distanceKm,
+        10d,
+        50d,
+        startPercent,
+        10d,
+        candidates,
+        prices.ToDictionary(
+            price => price.Country,
+            price => new RefuelPrice(price.Country, price.Price, "KWD", price.Price, "Test")));
+
+static IReadOnlyList<RefuelCandidate> Stations(params (double Km, string Country)[] stations) =>
+    stations.Select(station => new RefuelCandidate(station.Km, station.Country)).ToArray();
+
+// KW (cheap) for the first 100 km, then SA (dear) to km 600.
+static IReadOnlyList<RefuelCandidate> KuwaitThenSaudi() =>
+    Stations((0, "KW"), (50, "KW"), (99, "KW"), (101, "SA"), (150, "SA"), (200, "SA"), (250, "SA"),
+        (300, "SA"), (350, "SA"), (400, "SA"), (450, "SA"), (500, "SA"), (550, "SA"));
+
+static Task TestPlannerFillsBeforeBorder()
+{
+    var plan = RefuelPlanner.Plan(PlannerInput(600d, 50d, KuwaitThenSaudi(), ("KW", 0.10m), ("SA", 0.25m)));
+
+    AssertTrue(plan.IsFeasible, "Plan should be feasible.");
+    AssertEqual(2, plan.Stops.Count);
+    AssertClose(99d, plan.Stops[0].DistanceKm);
+    AssertEqual("KW", plan.Stops[0].CountryCode);
+    AssertClose(34.9d, plan.Stops[0].Liters, 0.001d);
+    AssertClose(500d, plan.Stops[1].DistanceKm);
+    AssertClose(5.1d, plan.Stops[1].Liters, 0.001d);
+    AssertClose(5d, plan.ArrivalFuelLiters, 0.001d);
+    return Task.CompletedTask;
+}
+
+static Task TestPlannerNoStopWhenInRange()
+{
+    var plan = RefuelPlanner.Plan(PlannerInput(300d, 100d, KuwaitThenSaudi(), ("KW", 0.10m), ("SA", 0.25m)));
+
+    AssertEqual(0, plan.Stops.Count);
+    AssertClose(20d, plan.ArrivalFuelLiters, 0.001d);
+    return Task.CompletedTask;
+}
+
+static Task TestPlannerBuysJustEnough()
+{
+    // Dear SA first, cheap KW from km 100. Start with 10 L (50 km of usable range).
+    var stations = Stations((0, "SA"), (50, "SA"), (101, "KW"), (150, "KW"), (200, "KW"));
+    var plan = RefuelPlanner.Plan(PlannerInput(300d, 20d, stations, ("SA", 0.25m), ("KW", 0.10m)));
+
+    var first = plan.Stops[0];
+    AssertClose(50d, first.DistanceKm);
+    AssertClose(5.1d, first.Liters, 0.001d);
+    AssertTrue(first.Reason.Contains("cheaper", StringComparison.OrdinalIgnoreCase), $"Reason should mention cheaper fuel: {first.Reason}");
+    AssertEqual("KW", plan.Stops[1].CountryCode);
+    return Task.CompletedTask;
+}
+
+static Task TestPlannerRespectsCap()
+{
+    var stations = new[]
+    {
+        new RefuelCandidate(0d, "OM"),
+        new RefuelCandidate(100d, "OM", MaxLiters: 30d),
+        new RefuelCandidate(300d, "OM"),
+        new RefuelCandidate(500d, "OM")
+    };
+    var plan = RefuelPlanner.Plan(PlannerInput(800d, 30d, stations, ("OM", 0.08m)));
+
+    AssertTrue(plan.Stops.All(stop => stop.DistanceKm != 100d || stop.Liters <= 30d + 1e-9), "Capped station sold more than 30 L.");
+    AssertTrue(plan.IsFeasible, "Plan should still be feasible using later stations.");
+    return Task.CompletedTask;
+}
+
+static Task TestPlannerFlagsGap()
+{
+    var plan = RefuelPlanner.Plan(PlannerInput(900d, 100d, Stations((0, "SA"), (600, "SA")), ("SA", 0.25m)));
+
+    AssertTrue(!plan.IsFeasible, "A 600 km gap with 450 km usable range is not feasible.");
+    AssertTrue(plan.Warnings.Any(w => w.Contains("gap", StringComparison.OrdinalIgnoreCase)), "Expected a gap warning.");
+    return Task.CompletedTask;
+}
+
+static Task TestPlannerTripCost()
+{
+    var plan = RefuelPlanner.Plan(PlannerInput(600d, 50d, KuwaitThenSaudi(), ("KW", 0.10m), ("SA", 0.25m)));
+
+    // Bought 34.9 L x 0.10 + 5.1 L x 0.25 = 4.765; started with 25 L at the origin price 0.10 = 2.500;
+    // arrive with 5 L valued at the last price paid 0.25 = 1.250. Trip cost = 4.765 + 2.5 - 1.25 = 6.015.
+    AssertEqual(4.765m, plan.PurchasedCost);
+    AssertEqual(2.500m, plan.StartFuelValue);
+    AssertEqual(1.250m, plan.ArrivalFuelValue);
+    AssertEqual(6.015m, plan.TripFuelCost);
+    AssertTrue(plan.IsComplete, "All stops were priced.");
+    return Task.CompletedTask;
+}
+
+static Task TestVirtualStationsAtBorders()
+{
+    var candidates = VirtualRefuelCandidates.FromSegments(
+        [new CountryRouteSegment("KW", 100d), new CountryRouteSegment("SA", 500d)]);
+
+    AssertTrue(candidates.Any(c => c.CountryCode == "KW" && Math.Abs(c.DistanceKm - 99d) < 1e-9), "Expected a last-chance KW station at km 99.");
+    AssertTrue(candidates.Any(c => c.CountryCode == "SA" && Math.Abs(c.DistanceKm - 101d) < 1e-9), "Expected a first SA station at km 101.");
+    AssertTrue(candidates.Any(c => c.DistanceKm == 0d), "Expected a station at the origin.");
+    AssertTrue(candidates.All(c => c.DistanceKm < 600d), "No station at or past the destination.");
+    AssertTrue(candidates.Zip(candidates.Skip(1)).All(pair => pair.Second.DistanceKm - pair.First.DistanceKm <= 50d + 1e-9), "Stations at most 50 km apart.");
+    return Task.CompletedTask;
+}
+
+static Task TestVirtualStationsOmanCap()
+{
+    var candidates = VirtualRefuelCandidates.FromSegments(
+        [new CountryRouteSegment("AE", 100d), new CountryRouteSegment("OM", 300d)]);
+
+    AssertTrue(candidates.Where(c => c.CountryCode == "OM" && c.DistanceKm <= 150d).All(c => c.MaxLiters == 30d), "OM stations within 50 km of the border are capped.");
+    AssertTrue(candidates.Where(c => c.CountryCode == "OM" && c.DistanceKm > 150d).All(c => c.MaxLiters is null), "OM stations further in are not capped.");
+    AssertTrue(candidates.Where(c => c.CountryCode == "AE").All(c => c.MaxLiters is null), "Other countries are not capped.");
+    return Task.CompletedTask;
+}
+
+static async Task TestEstimateIncludesPlan()
+{
+    // Kuwait 100 km then Saudi 500 km, 95 Octane at seed prices, 50 L tank half full, 10 L/100km.
+    var result = await new TripFuelCostCalculator().CalculateAsync(
+        new TripFuelCostInput(
+            [new CountryRouteSegment("KW", 100d), new CountryRouteSegment("SA", 500d)],
+            FuelType.GASOLINE_95,
+            10d,
+            "KWD",
+            50d,
+            50d)
+        {
+            ReservePercentage = 10d
+        },
+        new StaticSeedFuelPriceProvider(),
+        new StaticCurrencyConverter());
+
+    var plan = result.RefuelPlan!;
+    AssertTrue(plan.Stops.Count > 0, "Expected at least one stop.");
+    AssertEqual("KW", plan.Stops[0].CountryCode);
+    AssertTrue(plan.TripFuelCost < result.TotalCost, $"Filling in Kuwait should beat paying Saudi prices for Saudi km: {plan.TripFuelCost} vs {result.TotalCost}.");
+    AssertEqual(result.TotalCost - plan.TripFuelCost, result.RefuelSaving);
 }
 
 static async Task<TripEstimateResult> CalculateAsync(

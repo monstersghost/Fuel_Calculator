@@ -390,6 +390,7 @@ function Results({ result }) {
   const fuelType = result.requestedFuelType ?? result.segments?.[0]?.fuelType ?? 'GASOLINE_95';
   const missing = result.countriesMissingPrice ?? [];
   const totalIncomplete = result.isTotalComplete === false;
+  const plan = result.refuelPlan;
 
   return (
     <div className="results">
@@ -397,13 +398,23 @@ function Results({ result }) {
         <Metric label="Distance" value={`${formatNumber(result.totalDistanceKm)} km`} />
         <Metric label="Driving time" value={formatDuration(result.durationMinutes)} />
         <Metric label="Fuel needed" value={`${formatNumber(result.totalFuelLiters)} L`} />
+        {plan ? (
+          <Metric
+            label={plan.isComplete ? 'Planned fuel cost' : 'Planned fuel cost (incomplete)'}
+            value={`${formatMoney(plan.tripFuelCost)} ${result.outputCurrency ?? ''}`}
+            note={result.refuelSaving > 0 ? `Saves ${formatMoney(result.refuelSaving)} ${result.outputCurrency} by buying where it is cheaper` : null}
+            positive
+          />
+        ) : null}
         <Metric
-          label={totalIncomplete ? 'Total cost (incomplete)' : 'Total cost'}
+          label={`${plan ? 'At local prices' : 'Total cost'}${totalIncomplete ? ' (incomplete)' : ''}`}
           value={`${formatMoney(result.totalCost)} ${result.outputCurrency ?? ''}`}
           note={totalIncomplete ? `Excludes ${missing.join(', ')}: no price` : null}
         />
         <Metric label="Fuel type" value={fuelLabel(fuelType)} />
       </div>
+
+      {plan ? <RefuelPlanView plan={plan} currency={result.outputCurrency} /> : null}
 
       {result.fuelStops ? (
         <div className="fuel-stop-strip">
@@ -411,7 +422,9 @@ function Results({ result }) {
           <span>
             {formatNumber(result.fuelStops.usableRangeKm)} km per tank keeping {formatNumber(result.fuelStops.reservePercentage)}% in reserve
           </span>
-          <span>{result.fuelStops.estimatedMinimumStops} minimum refuel stop{result.fuelStops.estimatedMinimumStops === 1 ? '' : 's'}</span>
+          {plan ? null : (
+            <span>{result.fuelStops.estimatedMinimumStops} minimum refuel stop{result.fuelStops.estimatedMinimumStops === 1 ? '' : 's'}</span>
+          )}
         </div>
       ) : null}
 
@@ -466,13 +479,70 @@ function Results({ result }) {
   );
 }
 
-function Metric({ label, value, note }) {
+function Metric({ label, value, note, positive = false }) {
   return (
     <div className="metric-card">
       <span>{label}</span>
       <strong>{value}</strong>
-      {note ? <small className="metric-note">{note}</small> : null}
+      {note ? <small className={positive ? 'metric-note positive' : 'metric-note'}>{note}</small> : null}
     </div>
+  );
+}
+
+function RefuelPlanView({ plan, currency }) {
+  return (
+    <section className="refuel-plan" aria-label="Refuel plan">
+      <div className="refuel-head">
+        <h2>
+          <Fuel size={18} /> Refuel plan
+        </h2>
+        <span>
+          Start with {formatNumber(plan.startFuelLiters)} L · buy {formatNumber(plan.purchasedLiters)} L · arrive with{' '}
+          {formatNumber(plan.arrivalFuelLiters)} L ({formatNumber(plan.arrivalFuelPercentage)}%)
+        </span>
+      </div>
+
+      {plan.stops.length === 0 ? (
+        <p className="refuel-empty">No stop needed: the fuel in the tank reaches the destination.</p>
+      ) : (
+        <ol className="refuel-stops">
+          {plan.stops.map((stop, index) => (
+            <li key={`${stop.distanceKm}-${index}`}>
+              <div className="refuel-where">
+                <strong>km {formatNumber(stop.distanceKm)}</strong>
+                <span className="country-chip">{stop.countryCode}</span>
+              </div>
+              <div className="refuel-what">
+                <strong>
+                  {formatNumber(stop.liters)} L
+                  {stop.pricePerLiter == null ? ' · price unknown' : ` × ${formatMoney(stop.pricePerLiter)} ${stop.currency}`}
+                </strong>
+                <span>{stop.reason}</span>
+              </div>
+              <div className="refuel-cost">
+                <strong>{stop.convertedCost == null ? '-' : `${formatMoney(stop.convertedCost)} ${currency}`}</strong>
+                <span>
+                  {formatNumber(stop.fuelBeforePercentage)}% → {formatNumber(stop.fuelAfterPercentage)}%
+                </span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <p className="refuel-sum">
+        Bought {formatMoney(plan.purchasedCost)} + fuel you start with {formatMoney(plan.startFuelValue)} − fuel left on arrival{' '}
+        {formatMoney(plan.arrivalFuelValue)} = <strong>{formatMoney(plan.tripFuelCost)} {currency}</strong>
+      </p>
+
+      {plan.warnings?.length ? (
+        <div className={plan.isFeasible ? 'notice subtle' : 'notice error'}>
+          {plan.warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 

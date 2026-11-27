@@ -10,16 +10,23 @@ public sealed class StaticCurrencyConverter : ICurrencyConverter
     {
         _valueInKwd = valueInKwd ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
         {
+            // Value of one unit in KWD, from USD = 0.3075 KWD. SAR, AED, QAR, BHD, OMR and JOD are pegged
+            // to the dollar, so their rows are exact. The rest are static estimates checked 2026-11-27:
+            // EGP ~53.7/USD (bank quotes, 15 Nov 2026), IQD 1,310/USD (official), LBP ~89,600/USD,
+            // SYP ~115/USD in new pounds (two zeros dropped on 1 Jan 2026), EUR approximate.
             ["KWD"] = 1.0000m,
-            ["SAR"] = 0.0818m,
-            ["AED"] = 0.0837m,
-            ["QAR"] = 0.0844m,
-            ["BHD"] = 0.8150m,
-            ["OMR"] = 0.7990m,
             ["USD"] = 0.3075m,
+            ["SAR"] = 0.3075m / 3.75m,
+            ["AED"] = 0.3075m / 3.6725m,
+            ["QAR"] = 0.3075m / 3.64m,
+            ["BHD"] = 0.3075m / 0.376m,
+            ["OMR"] = 0.3075m / 0.3845m,
+            ["JOD"] = 0.3075m / 0.709m,
             ["EUR"] = 0.3560m,
-            ["JOD"] = 0.4337m,
-            ["SYP"] = 0.000023m
+            ["EGP"] = 0.3075m / 53.7m,
+            ["IQD"] = 0.3075m / 1310m,
+            ["LBP"] = 0.3075m / 89600m,
+            ["SYP"] = 0.3075m / 115m
         };
     }
 
