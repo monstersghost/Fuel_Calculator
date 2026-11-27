@@ -1,0 +1,77 @@
+country,fuel,price,currency,effective,confidence,source,url
+KW,GASOLINE_91,0.085,KWD,2026-01-01,MEDIUM,Kuwait subsidies committee,https://gulfnews.com/business/energy/kuwait-sets-fuel-prices-for-first-quarter-of-2026-1.500392620
+KW,GASOLINE_95,0.105,KWD,2026-01-01,MEDIUM,Kuwait subsidies committee,https://gulfnews.com/business/energy/kuwait-sets-fuel-prices-for-first-quarter-of-2026-1.500392620
+KW,GASOLINE_98,0.200,KWD,2026-01-01,LOW,Kuwait subsidies committee,https://gulfnews.com/business/energy/kuwait-sets-fuel-prices-for-first-quarter-of-2026-1.500392620
+KW,DIESEL,0.115,KWD,2026-01-01,MEDIUM,Kuwait subsidies committee,https://gulfnews.com/business/energy/kuwait-sets-fuel-prices-for-first-quarter-of-2026-1.500392620
+SA,GASOLINE_91,2.18,SAR,2026-11-01,HIGH,Aramco,https://www.aramco.com/en/what-we-do/energy-products/retail-fuels
+SA,GASOLINE_95,2.33,SAR,2026-11-01,HIGH,Aramco,https://www.aramco.com/en/what-we-do/energy-products/retail-fuels
+SA,GASOLINE_98,5.09,SAR,2026-11-01,MEDIUM,Aramco,https://www.aramco.com/en/what-we-do/energy-products/retail-fuels
+SA,DIESEL,1.79,SAR,2026-11-01,HIGH,Aramco,https://www.aramco.com/en/what-we-do/energy-products/retail-fuels
+AE,GASOLINE_91,3.97,AED,2026-11-01,HIGH,UAE Fuel Price Committee,https://www.wam.ae/a/17i2n96
+AE,GASOLINE_95,4.04,AED,2026-11-01,HIGH,UAE Fuel Price Committee,https://www.wam.ae/a/17i2n96
+AE,GASOLINE_98,4.16,AED,2026-11-01,HIGH,UAE Fuel Price Committee,https://www.wam.ae/a/17i2n96
+AE,DIESEL,4.75,AED,2026-11-01,HIGH,UAE Fuel Price Committee,https://www.wam.ae/a/17i2n96
+QA,GASOLINE_91,1.95,QAR,2026-11-01,MEDIUM,QatarEnergy,https://www.yallamotor.com/news/fuel-prices-qatar-november-2026-en-55833
+QA,GASOLINE_95,2.10,QAR,2026-11-01,MEDIUM,QatarEnergy,https://www.yallamotor.com/news/fuel-prices-qatar-november-2026-en-55833
+QA,DIESEL,2.05,QAR,2026-11-01,MEDIUM,QatarEnergy,https://www.yallamotor.com/news/fuel-prices-qatar-november-2026-en-55833
+BH,GASOLINE_91,0.235,BHD,2026-11-01,MEDIUM,Bahrain Fuel Price Committee,https://www.newsofbahrain.com/en/article/bahrain-announces-fuel-prices-for-november
+BH,GASOLINE_95,0.277,BHD,2026-11-01,MEDIUM,Bahrain Fuel Price Committee,https://www.newsofbahrain.com/en/article/bahrain-announces-fuel-prices-for-november
+BH,GASOLINE_98,0.410,BHD,2026-11-01,MEDIUM,Bahrain Fuel Price Committee,https://www.newsofbahrain.com/en/article/bahrain-announces-fuel-prices-for-november
+BH,DIESEL,0.260,BHD,2026-11-01,MEDIUM,Bahrain Fuel Price Committee,https://www.newsofbahrain.com/en/article/bahrain-announces-fuel-prices-for-november
+OM,GASOLINE_91,0.229,OMR,2026-11-01,MEDIUM,Oman Ministry of Energy,https://www.yallamotor.com/news/fuel-prices-oman-november-2026-en-55835
+OM,GASOLINE_95,0.239,OMR,2026-11-01,MEDIUM,Oman Ministry of Energy,https://www.yallamotor.com/news/fuel-prices-oman-november-2026-en-55835
+OM,GASOLINE_98,0.399,OMR,2026-11-01,MEDIUM,Oman Ministry of Energy,https://www.yallamotor.com/news/fuel-prices-oman-november-2026-en-55835
+OM,DIESEL,0.258,OMR,2026-11-01,MEDIUM,Oman Ministry of Energy,https://www.yallamotor.com/news/fuel-prices-oman-november-2026-en-55835
+JO,GASOLINE_91,1.050,JOD,2026-10-01,LOW,Jordan fuel pricing committee,https://www.okaz.com.sa/economy/na/2268793
+JO,GASOLINE_95,1.360,JOD,2026-10-01,LOW,Jordan fuel pricing committee,https://www.okaz.com.sa/economy/na/2268793
+JO,DIESEL,0.900,JOD,2026-10-01,LOW,Jordan fuel pricing committee,https://www.okaz.com.sa/economy/na/2268793
+SY,GASOLINE_91,185,SYP,2026-09-13,LOW,Syria Ministry of Energy,https://english.enabbaladi.net/archives/2026/09/syria-raises-fuel-prices-in-unprecedented-hike/amp/
+SY,GASOLINE_95,195,SYP,2026-09-13,LOW,Syria Ministry of Energy,https://english.enabbaladi.net/archives/2026/09/syria-raises-fuel-prices-in-unprecedented-hike/amp/
+SY,DIESEL,175,SYP,2026-09-13,LOW,Syria Ministry of Energy,https://english.enabbaladi.net/archives/2026/09/syria-raises-fuel-prices-in-unprecedented-hike/amp/
+IQ,GASOLINE_95,850,IQD,2026-08-10,LOW,GlobalPetrolPrices,https://www.globalpetrolprices.com/Iraq/gasoline_prices/
+LB,GASOLINE_95,122750,LBP,2026-08-11,LOW,Lebanon Ministry of Energy,https://www.lbcgroup.tv/news/economy/891843/lebanons-fuel-prices-slightly-increase/en
+LB,GASOLINE_98,123700,LBP,2026-08-18,LOW,Lebanon Ministry of Energy,https://www.lbcgroup.tv/news/economy/891843/lebanons-fuel-prices-slightly-increase/en
+LB,DIESEL,118750,LBP,2026-08-18,LOW,Lebanon Ministry of Energy,https://www.lbcgroup.tv/news/economy/891843/lebanons-fuel-prices-slightly-increase/en
+EG,GASOLINE_91,22.25,EGP,2026-03-10,MEDIUM,Egypt fuel pricing committee,https://www.riotimesonline.com/egypt-petrol-diesel-prices-unchanged-december-2026/
+EG,GASOLINE_95,24.00,EGP,2026-03-10,MEDIUM,Egypt fuel pricing committee,https://www.riotimesonline.com/egypt-petrol-diesel-prices-unchanged-december-2026/
+EG,DIESEL,20.50,EGP,2026-03-10,MEDIUM,Egypt fuel pricing committee,https://www.riotimesonline.com/egypt-petrol-diesel-prices-unchanged-december-2026/
+US,GASOLINE_91,1.0324,USD,2026-11-12,MEDIUM,AAA national average (regular $3.908/gal),https://gasprices.aaa.com/?p=5267
+GB,GASOLINE_95,1.6707,GBP,2026-11-16,MEDIUM,UK government weekly road fuel prices,https://petrolprices.co.uk/petrol-below-150p-rac-small-forecourts-november-2026.php
+GB,DIESEL,1.9677,GBP,2026-11-16,MEDIUM,UK government weekly road fuel prices,https://petrolprices.co.uk/petrol-below-150p-rac-small-forecourts-november-2026.php
+CA,GASOLINE_91,1.674,CAD,2026-11-18,LOW,National average regular (news report),https://www.insauga.com/massive-drop-in-gas-prices-coming-to-toronto-and-southern-ontario/
+TR,GASOLINE_95,71.20,TRY,2026-11-16,MEDIUM,Istanbul pump price (news report),https://www.timeturk.com/16-kasim-akaryakit-fiyatlari-benzin-7120-tl-mazot-9520-tl
+TR,DIESEL,95.20,TRY,2026-11-16,MEDIUM,Istanbul pump price (news report),https://www.timeturk.com/16-kasim-akaryakit-fiyatlari-benzin-7120-tl-mazot-9520-tl
+AU,GASOLINE_91,2.343,AUD,2026-11-07,LOW,National average ULP91 (news report),https://www.ibtimes.com.au/australian-fuel-prices-fall-wholesale-costs-1878124
+AU,DIESEL,2.78,AUD,2026-11-07,LOW,National average (news report),https://www.ibtimes.com.au/australian-fuel-prices-fall-wholesale-costs-1878124
+IN,GASOLINE_91,102.12,INR,2026-07-28,LOW,Delhi retail price,https://www.businesstoday.in/india/story/petrol-diesel-prices-today-july-28-check-latest-rates-in-delhi-mumbai-chennai-more-545560-2026-07-28
+IN,DIESEL,95.20,INR,2026-07-28,LOW,Delhi retail price,https://www.businesstoday.in/india/story/petrol-diesel-prices-today-july-28-check-latest-rates-in-delhi-mumbai-chennai-more-545560-2026-07-28
+CH,GASOLINE_95,1.99,CHF,2026-09-07,LOW,GlobalPetrolPrices,https://www.globalpetrolprices.com/Switzerland/gasoline_prices/
+ZA,GASOLINE_91,29.87,ZAR,2026-11-04,HIGH,Department of Mineral Resources and Energy (inland 93),https://www.carmag.co.za/news/petrol-to-drop-by-1-cent-confirmed-fuel-prices-for-south-africa-in-november-2026/
+ZA,GASOLINE_95,30.24,ZAR,2026-11-04,HIGH,Department of Mineral Resources and Energy (inland 95),https://www.carmag.co.za/news/petrol-to-drop-by-1-cent-confirmed-fuel-prices-for-south-africa-in-november-2026/
+ZA,DIESEL,30.85,ZAR,2026-11-04,HIGH,Department of Mineral Resources and Energy (inland 500ppm),https://www.carmag.co.za/news/petrol-to-drop-by-1-cent-confirmed-fuel-prices-for-south-africa-in-november-2026/
+GE,GASOLINE_95,4.32,GEL,2026-10-26,LOW,GlobalPetrolPrices,https://www.globalpetrolprices.com/Georgia/
+GE,DIESEL,4.98,GEL,2026-10-26,LOW,GlobalPetrolPrices,https://www.globalpetrolprices.com/Georgia/
+AM,GASOLINE_95,550,AMD,2026-07-06,LOW,GlobalPetrolPrices,https://www.globalpetrolprices.com/Armenia/
+AM,DIESEL,590,AMD,2026-07-06,LOW,GlobalPetrolPrices,https://www.globalpetrolprices.com/Armenia/
+AL,GASOLINE_95,189,ALL,2026-08-10,LOW,Weekly update (news report),https://www.globalpetrolprices.com/Albania/gasoline_prices/
+AL,DIESEL,207,ALL,2026-11-17,MEDIUM,Albania Transparency Board (maximum retail price),https://www.balkanweb.com/en/lajm-i-fundit-bordi-i-transparences-publikon-cmimet-e-reja-per-naften-dhe-benzinen/
+MD,DIESEL,26.67,MDL,2026-07-13,LOW,GlobalPetrolPrices,https://www.globalpetrolprices.com/Moldova/diesel_prices/
+BY,GASOLINE_95,2.60,BYN,2026-01-19,LOW,GlobalPetrolPrices,https://www.globalpetrolprices.com/Belarus/gasoline_prices/
+IS,GASOLINE_95,274,ISK,2026-10-04,LOW,DailyFuels,https://dailyfuels.com/iceland/?lang=de
+IS,DIESEL,315,ISK,2026-10-04,LOW,DailyFuels,https://dailyfuels.com/iceland/?lang=de
+LY,GASOLINE_95,0.15,LYD,2026-10-01,LOW,GlobalPetrolPrices (via Nairametrics),https://nairametrics.com/2026/11/03/top-10-african-countries-with-the-lowest-petrol-prices-in-october/
+LY,DIESEL,0.15,LYD,2026-10-01,LOW,GlobalPetrolPrices (via Nairametrics),https://www.globalpetrolprices.com/Libya/diesel_prices/
+SD,GASOLINE_95,1.14,USD,2026-10-01,LOW,GlobalPetrolPrices (via Nairametrics),https://nairametrics.com/2026/11/03/top-10-african-countries-with-the-lowest-petrol-prices-in-october/
+SD,DIESEL,0.656,USD,2026-08-01,LOW,GlobalPetrolPrices (via Nairametrics),https://nairametrics.com/2026/08/25/top-10-african-countries-with-the-cheapest-diesel-prices-in-august-2026/
+TW,GASOLINE_91,31.2,TWD,2026-11-02,MEDIUM,CPC recommended retail price (92 octane),https://focustaiwan.tw/business/202610310012
+TW,GASOLINE_95,32.7,TWD,2026-11-02,MEDIUM,CPC recommended retail price,https://focustaiwan.tw/business/202610310012
+TW,GASOLINE_98,34.7,TWD,2026-11-02,MEDIUM,CPC recommended retail price,https://focustaiwan.tw/business/202610310012
+TW,DIESEL,29.9,TWD,2026-11-09,MEDIUM,CPC premium diesel,https://www.taipeitimes.com/News/biz/archives/2026/11/09/2003867386
+PY,GASOLINE_91,6550,PYG,2026-11-17,LOW,Suggested price for private stations (nafta regular),https://www.ultimahora.com/mas-emblemas-se-suman-a-la-baja-de-los-combustibles
+PY,GASOLINE_95,7900,PYG,2026-11-17,LOW,Suggested price for private stations (nafta super),https://www.ultimahora.com/mas-emblemas-se-suman-a-la-baja-de-los-combustibles
+PY,DIESEL,7990,PYG,2026-11-17,LOW,Suggested price for private stations (diesel comun),https://www.ultimahora.com/mas-emblemas-se-suman-a-la-baja-de-los-combustibles
+NO,GASOLINE_95,28.19,NOK,2026-11-02,MEDIUM,GlobalPetrolPrices,https://www.globalpetrolprices.com/Norway/
+NO,DIESEL,28.03,NOK,2026-11-02,MEDIUM,GlobalPetrolPrices,https://www.globalpetrolprices.com/Norway/
+RU,GASOLINE_91,70.01,RUB,2026-11-09,MEDIUM,Rosstat weekly (AI-92),https://www.akm.ru/eng/news/gasoline-prices-in-russia-decreased-by-0-8-in-a-week-/
+RU,GASOLINE_95,76.29,RUB,2026-11-09,MEDIUM,Rosstat weekly (AI-95),https://www.akm.ru/eng/news/gasoline-prices-in-russia-decreased-by-0-8-in-a-week-/
+RU,DIESEL,86.63,RUB,2026-11-09,MEDIUM,Rosstat weekly,https://www.akm.ru/eng/news/gasoline-prices-in-russia-decreased-by-0-8-in-a-week-/

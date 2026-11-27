@@ -27,8 +27,17 @@ public sealed class GoogleMapsLinkResolver(HttpClient httpClient) : IGoogleMapsL
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
 
-        return response.RequestMessage?.RequestUri?.ToString();
+        var finalUri = response.RequestMessage?.RequestUri;
+
+        // Only hand back a URL that ended up on Google Maps; anything else is not a route link.
+        return finalUri is not null && IsGoogleHost(finalUri) ? finalUri.ToString() : null;
     }
+
+    private static bool IsGoogleHost(Uri uri) =>
+        uri.Scheme == Uri.UriSchemeHttps
+        && (uri.Host.StartsWith("google.", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.StartsWith("www.google.", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.StartsWith("maps.google.", StringComparison.OrdinalIgnoreCase));
 
     private static bool IsShortGoogleMapsHost(Uri uri) =>
         uri.Host.Equals("maps.app.goo.gl", StringComparison.OrdinalIgnoreCase)

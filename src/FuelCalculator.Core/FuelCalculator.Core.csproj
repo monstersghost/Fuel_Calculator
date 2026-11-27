@@ -6,4 +6,21 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Built by tools/data/build_world_data.py; sources and licences in tools/data/README.md. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Segmentation\Data\world-countries.json" LogicalName="FuelCalculator.Core.world-countries.json" />
+    <EmbeddedResource Include="Domain\Data\countries.json" LogicalName="FuelCalculator.Core.countries.json" />
+    <EmbeddedResource Include="Currency\Data\fx-usd.json" LogicalName="FuelCalculator.Core.fx-usd.json" />
+    <EmbeddedResource Include="Fuel\Data\seed-prices.json" LogicalName="FuelCalculator.Core.seed-prices.json" />
+  </ItemGroup>
+
+  <!-- Hand-curated; sources inside the file. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Borders\Data\border-crossings.json" LogicalName="FuelCalculator.Core.border-crossings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FuelCalculator.Tests" />
+  </ItemGroup>
+
 </Project>

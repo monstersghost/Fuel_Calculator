@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { Calculator, Circle, CircleDollarSign, Fuel, GripVertical, MapPin, MapPinned, Plus, Route, Search, Trash2 } from 'lucide-react';
+import { Calculator, Circle, CircleDollarSign, Flag, Fuel, GripVertical, MapPin, MapPinned, Plus, Route, Search, Trash2 } from 'lucide-react';
 import './styles.css';
 
 const fuelTypes = [
@@ -17,7 +17,30 @@ const consumptionUnits = [
   { value: 'UK_MPG', label: 'UK MPG' },
 ];
 
-const currencies = ['KWD', 'SAR', 'AED', 'QAR', 'BHD', 'OMR', 'USD', 'EUR', 'JOD', 'SYP'];
+// Shown first in the currency lists; the rest come from the API's exchange-rate snapshot.
+const commonCurrencies = ['KWD', 'SAR', 'AED', 'QAR', 'BHD', 'OMR', 'USD', 'EUR', 'GBP', 'JOD'];
+
+function useCurrencies() {
+  const [data, setData] = React.useState({ currencies: commonCurrencies, asOf: null });
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/currencies')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (!cancelled && body?.currencies?.length) {
+          const rest = body.currencies.filter((code) => !commonCurrencies.includes(code));
+          setData({ currencies: [...commonCurrencies, ...rest], asOf: body.asOf });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return data;
+}
 
 const initialForm = {
   googleMapsLink: '',
@@ -27,24 +50,41 @@ const initialForm = {
   outputCurrency: 'KWD',
   tankSizeLiters: '70',
   currentFuelPercentage: '100',
+  reservePercentage: '15',
+  departureTime: '',
+  passengers: '1',
 };
 
 const initialStops = [
-  { label: 'Home', coordinates: '' },
-  { label: 'Hafar Al Batin Saudi Arabia', coordinates: '' },
-  { label: 'Al Hadithah Saudi Arabia', coordinates: '' },
-  { label: 'Al Nabk, Syria', coordinates: '' },
+  { label: 'Kuwait City, Kuwait', coordinates: '' },
+  { label: 'Dubai, United Arab Emirates', coordinates: '' },
 ];
+
+function useServiceInfo() {
+  const [info, setInfo] = React.useState(null);
+
+  React.useEffect(() => {
+    fetch('/api/health')
+      .then((response) => (response.ok ? response.json() : null))
+      .then(setInfo)
+      .catch(() => {});
+  }, []);
+
+  return info;
+}
 
 function App() {
   const [form, setForm] = React.useState(initialForm);
   const [stops, setStops] = React.useState(initialStops);
   const [manualPrices, setManualPrices] = React.useState([
-    createManualPrice({ countryCode: 'KW', fuelType: 'GASOLINE_95', pricePerLiter: '', currency: 'KWD' }),
+    createManualPrice({ countryCode: 'KW', fuelType: 'GASOLINE_95', pricePerLiter: '' }),
   ]);
   const [result, setResult] = React.useState(null);
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const { currencies, asOf: ratesAsOf } = useCurrencies();
+  const service = useServiceInfo();
+  const osmRoutes = service?.routeProvider?.toLowerCase() === 'osrm';
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -59,7 +99,7 @@ function App() {
   function addManualPrice() {
     setManualPrices((current) => [
       ...current,
-      createManualPrice({ countryCode: '', fuelType: form.fuelType, pricePerLiter: '', currency: form.outputCurrency }),
+      createManualPrice({ countryCode: '', fuelType: form.fuelType, pricePerLiter: '' }),
     ]);
   }
 
@@ -109,13 +149,17 @@ function App() {
       outputCurrency: form.outputCurrency,
       tankSizeLiters: form.tankSizeLiters ? Number(form.tankSizeLiters) : null,
       currentFuelPercentage: form.currentFuelPercentage ? Number(form.currentFuelPercentage) : null,
+      reservePercentage: form.reservePercentage === '' ? null : Number(form.reservePercentage),
+      departureTime: form.departureTime ? `${form.departureTime}:00` : null,
+      passengers: form.passengers ? Number(form.passengers) : null,
       manualFuelPrices: manualPrices
         .filter((price) => price.countryCode && price.pricePerLiter)
         .map((price) => ({
           countryCode: price.countryCode,
           fuelType: price.fuelType || form.fuelType,
           pricePerLiter: Number(price.pricePerLiter),
-          currency: price.currency || form.outputCurrency,
+          // Blank means the country's own currency; the API fills it in.
+          currency: price.currency || null,
         })),
     };
 
@@ -134,7 +178,7 @@ function App() {
         return;
       }
 
-      setResult(data);
+      setResult({ ...data, requestedFuelType: payload.fuelType });
     } catch (estimateError) {
       setError(estimateError instanceof Error ? estimateError.message : 'Estimate failed.');
     } finally {
@@ -149,7 +193,13 @@ function App() {
           <p className="eyebrow">Cross-border fuel planning</p>
           <h1>Fuel Cost Estimator</h1>
         </div>
-        <div className="status-pill">Mock route mode</div>
+        <div className="status-pill">
+          {service
+            ? `${{ osrm: 'OpenStreetMap routes', google: 'Google routes', mock: 'Mock routes' }[service.routeProvider?.toLowerCase()] ?? service.routeProvider} · ${
+                service.fuelStations === 'OpenStreetMap' ? 'real stations' : 'stand-in stations'
+              }`
+            : 'Connecting…'}
+        </div>
       </header>
 
       <section className="workspace">
@@ -211,7 +261,7 @@ function App() {
             </label>
           </div>
 
-          <div className="field-grid three">
+          <div className="field-grid">
             <label className="field">
               <span>Output currency</span>
               <select value={form.outputCurrency} onChange={(event) => updateField('outputCurrency', event.target.value)}>
@@ -222,6 +272,9 @@ function App() {
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="field-grid three">
             <TextField
               label="Tank size"
               type="number"
@@ -240,6 +293,34 @@ function App() {
               value={form.currentFuelPercentage}
               onChange={(value) => updateField('currentFuelPercentage', value)}
               placeholder="%"
+            />
+            <TextField
+              label="Keep in reserve"
+              type="number"
+              min="0"
+              max="99"
+              step="1"
+              value={form.reservePercentage}
+              onChange={(value) => updateField('reservePercentage', value)}
+              placeholder="%"
+            />
+          </div>
+
+          <div className="field-grid">
+            <TextField
+              label="Departure (local time)"
+              type="datetime-local"
+              value={form.departureTime}
+              onChange={(value) => updateField('departureTime', value)}
+            />
+            <TextField
+              label="People in the car"
+              type="number"
+              min="1"
+              max="50"
+              step="1"
+              value={form.passengers}
+              onChange={(value) => updateField('passengers', value)}
             />
           </div>
 
@@ -280,6 +361,7 @@ function App() {
                 <label className="field">
                   <span>Currency</span>
                   <select value={price.currency} onChange={(event) => updateManualPrice(index, 'currency', event.target.value)}>
+                    <option value="">Local</option>
                     {currencies.map((currency) => (
                       <option key={currency} value={currency}>
                         {currency}
@@ -298,6 +380,21 @@ function App() {
             <Calculator size={19} />
             {loading ? 'Calculating' : 'Calculate'}
           </button>
+          <p className="attribution">
+            <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer">
+              Rates By Exchange Rate API
+            </a>
+            {ratesAsOf ? ` · ${ratesAsOf}` : ''}
+            {osmRoutes ? (
+              <>
+                {' · Routes and places © '}
+                <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+                  OpenStreetMap contributors
+                </a>
+                {' via OSRM and Nominatim'}
+              </>
+            ) : null}
+          </p>
         </form>
 
         <section className="results-space">
@@ -370,21 +467,57 @@ function EmptyResults() {
 }
 
 function Results({ result }) {
-  const fuelType = result.segments?.[0]?.fuelType ?? 'GASOLINE_95';
+  const fuelType = result.requestedFuelType ?? result.segments?.[0]?.fuelType ?? 'GASOLINE_95';
+  const missing = result.countriesMissingPrice ?? [];
+  const totalIncomplete = result.isTotalComplete === false;
+  const plan = result.refuelPlan;
 
   return (
     <div className="results">
       <div className="metric-grid">
         <Metric label="Distance" value={`${formatNumber(result.totalDistanceKm)} km`} />
+        <Metric
+          label={result.timing?.arrival ? 'Arrive' : 'Trip time'}
+          value={result.timing?.arrival ? formatDateTime(result.timing.arrival) : formatDuration(result.timing?.totalMinutes ?? result.durationMinutes)}
+          note={
+            result.timing
+              ? `${formatDuration(result.timing.drivingMinutes)} driving · ${formatDuration(result.timing.borderMinutes)} at borders · ${formatDuration(result.timing.fuelStopMinutes)} fuel stops`
+              : null
+          }
+          neutral
+        />
         <Metric label="Fuel needed" value={`${formatNumber(result.totalFuelLiters)} L`} />
-        <Metric label="Total cost" value={`${formatMoney(result.totalCost)} ${result.outputCurrency ?? ''}`} />
+        {plan ? (
+          <Metric
+            label={plan.isComplete ? 'Planned fuel cost' : 'Planned fuel cost (incomplete)'}
+            value={`${formatMoney(plan.tripFuelCost)} ${result.outputCurrency ?? ''}`}
+            note={result.refuelSaving > 0 ? `Saves ${formatMoney(result.refuelSaving)} ${result.outputCurrency} by buying where it is cheaper` : null}
+            positive
+          />
+        ) : null}
+        <Metric
+          label={`${plan ? 'At local prices' : 'Total cost'}${totalIncomplete ? ' (incomplete)' : ''}`}
+          value={`${formatMoney(result.totalCost)} ${result.outputCurrency ?? ''}`}
+          note={totalIncomplete ? `Excludes ${missing.join(', ')}: no price` : null}
+        />
         <Metric label="Fuel type" value={fuelLabel(fuelType)} />
       </div>
+
+      {plan ? <RefuelPlanView plan={plan} currency={result.outputCurrency} /> : null}
+
+      {result.borderCrossings?.length ? (
+        <BorderView crossings={result.borderCrossings} total={result.borderCostTotal} currency={result.outputCurrency} />
+      ) : null}
 
       {result.fuelStops ? (
         <div className="fuel-stop-strip">
           <span>{formatNumber(result.fuelStops.fullTankRangeKm)} km full-tank range</span>
-          <span>{result.fuelStops.estimatedMinimumStops} minimum refuel stop{result.fuelStops.estimatedMinimumStops === 1 ? '' : 's'}</span>
+          <span>
+            {formatNumber(result.fuelStops.usableRangeKm)} km per tank keeping {formatNumber(result.fuelStops.reservePercentage)}% in reserve
+          </span>
+          {plan ? null : (
+            <span>{result.fuelStops.estimatedMinimumStops} minimum refuel stop{result.fuelStops.estimatedMinimumStops === 1 ? '' : 's'}</span>
+          )}
         </div>
       ) : null}
 
@@ -419,6 +552,7 @@ function Results({ result }) {
                   {segment.pricePerLiter == null
                     ? 'Missing'
                     : `${formatMoney(segment.pricePerLiter)} ${segment.priceCurrency}/L`}
+                  {segment.fuelType !== fuelType ? <span className="grade-note">as {fuelLabel(segment.fuelType)}</span> : null}
                 </td>
                 <td>{segment.localCost == null ? '-' : `${formatMoney(segment.localCost)} ${segment.priceCurrency}`}</td>
                 <td className="converted-cell">
@@ -438,13 +572,179 @@ function Results({ result }) {
   );
 }
 
-function Metric({ label, value }) {
+function Metric({ label, value, note, positive = false, neutral = false }) {
+  const noteClass = positive ? 'metric-note positive' : neutral ? 'metric-note neutral' : 'metric-note';
+
   return (
     <div className="metric-card">
       <span>{label}</span>
       <strong>{value}</strong>
+      {note ? <small className={noteClass}>{note}</small> : null}
     </div>
   );
+}
+
+const bandLabels = { normal: 'Normal', peak: 'Weekend peak', holiday: 'Holiday peak', open: 'Open border' };
+
+function BorderView({ crossings, total, currency }) {
+  return (
+    <section className="border-plan" aria-label="Border crossings">
+      <div className="refuel-head">
+        <h2>
+          <Flag size={18} /> Border crossings
+        </h2>
+        <span>
+          {crossings.length} crossing{crossings.length === 1 ? '' : 's'} ·{' '}
+          {formatDuration(crossings.reduce((sum, crossing) => sum + crossing.delayMinutes, 0))} expected waiting
+          {total != null ? ` · ${formatMoney(total)} ${currency} in fees` : ''}
+        </span>
+      </div>
+
+      <ol className="border-list">
+        {crossings.map((crossing) => (
+          <li key={`${crossing.distanceKm}-${crossing.toCountry}`} className={crossing.isOpenBorder ? 'open' : ''}>
+            <div className="border-top">
+              <div>
+                <strong>{crossing.name}</strong>
+                <span className="border-sub">
+                  km {formatNumber(crossing.distanceKm)} · {crossing.fromCountry} → {crossing.toCountry}
+                  {crossing.arrivalAtBorder ? ` · reach it ${formatDateTime(crossing.arrivalAtBorder)}` : ''}
+                  {crossing.hours && !crossing.isOpenBorder ? ` · ${crossing.hours}` : ''}
+                </span>
+              </div>
+              <div className="border-wait">
+                <strong>{crossing.isOpenBorder ? 'No stop' : `~${formatDuration(crossing.delayMinutes)}`}</strong>
+                <span className={`band-chip ${crossing.band}`}>{bandLabels[crossing.band] ?? crossing.band}</span>
+              </div>
+            </div>
+
+            {crossing.costs.length ? (
+              <ul className="border-costs">
+                {crossing.costs.map((cost) => (
+                  <li key={cost.label}>
+                    <span>{cost.label}</span>
+                    <span>
+                      {formatMoney(cost.amount)} {cost.currency}
+                      {cost.convertedAmount != null && cost.currency !== currency ? ` ≈ ${formatMoney(cost.convertedAmount)} ${currency}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {crossing.requirements.length ? (
+              <ul className="border-notes requirements">
+                {crossing.requirements.map((requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ))}
+              </ul>
+            ) : null}
+
+            {crossing.notes.length ? (
+              <ul className="border-notes">
+                {crossing.notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+
+      <p className="refuel-sum">
+        Waits are rough estimates from news reports, not live data. Check current crossing times before you leave.
+      </p>
+    </section>
+  );
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  return date.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function RefuelPlanView({ plan, currency }) {
+  return (
+    <section className="refuel-plan" aria-label="Refuel plan">
+      <div className="refuel-head">
+        <h2>
+          <Fuel size={18} /> Refuel plan
+        </h2>
+        <span>
+          Start with {formatNumber(plan.startFuelLiters)} L · buy {formatNumber(plan.purchasedLiters)} L · arrive with{' '}
+          {formatNumber(plan.arrivalFuelLiters)} L ({formatNumber(plan.arrivalFuelPercentage)}%)
+        </span>
+      </div>
+
+      {plan.stops.length === 0 ? (
+        <p className="refuel-empty">No stop needed: the fuel in the tank reaches the destination.</p>
+      ) : (
+        <ol className="refuel-stops">
+          {plan.stops.map((stop, index) => (
+            <li key={`${stop.distanceKm}-${index}`}>
+              <div className="refuel-where">
+                <strong>km {formatNumber(stop.distanceKm)}</strong>
+                <span className="country-chip">{stop.countryCode}</span>
+                {stop.name ? <span className="station-name">{stop.name}</span> : null}
+                {stop.open24Hours === true ? <span className="hours-chip">24/7</span> : null}
+                {stop.open24Hours === false ? <span className="hours-chip limited">Limited hours</span> : null}
+              </div>
+              <div className="refuel-what">
+                <strong>
+                  {formatNumber(stop.liters)} L
+                  {stop.pricePerLiter == null ? ' · price unknown' : ` × ${formatMoney(stop.pricePerLiter)} ${stop.currency}`}
+                </strong>
+                <span>{stop.reason}</span>
+              </div>
+              <div className="refuel-cost">
+                <strong>{stop.convertedCost == null ? '-' : `${formatMoney(stop.convertedCost)} ${currency}`}</strong>
+                <span>
+                  {formatNumber(stop.fuelBeforePercentage)}% → {formatNumber(stop.fuelAfterPercentage)}%
+                </span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <p className="refuel-sum">
+        Bought {formatMoney(plan.purchasedCost)} + fuel you start with {formatMoney(plan.startFuelValue)} − fuel left on arrival{' '}
+        {formatMoney(plan.arrivalFuelValue)} = <strong>{formatMoney(plan.tripFuelCost)} {currency}</strong>
+      </p>
+
+      {plan.warnings?.some((warning) => warning.includes('OpenStreetMap fuel stations')) ? (
+        <p className="attribution">
+          Fuel stations ©{' '}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+            OpenStreetMap contributors
+          </a>
+        </p>
+      ) : null}
+
+      {plan.warnings?.length ? (
+        <div className={plan.isFeasible ? 'notice subtle' : 'notice error'}>
+          {plan.warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function formatDuration(minutes) {
+  if (minutes == null || Number.isNaN(Number(minutes))) {
+    return '-';
+  }
+
+  const total = Math.round(Number(minutes));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  return hours > 0 ? `${hours} h ${rest} min` : `${rest} min`;
 }
 
 function fuelLabel(value) {
@@ -477,7 +777,7 @@ function createManualPrice(overrides = {}) {
     countryCode: '',
     fuelType: 'GASOLINE_95',
     pricePerLiter: '',
-    currency: 'KWD',
+    currency: '',
     ...overrides,
   };
 }

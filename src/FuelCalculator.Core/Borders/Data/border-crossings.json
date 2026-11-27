@@ -1,0 +1,154 @@
+{
+  "checkedOn": "2026-11-27",
+  "note": "Hand-curated. Coordinates are approximate (within a few km). Delays are typical waits in minutes estimated from news reports, not measured data: treat them as rough guides. Peaks: 'gcc' = Thursday 14:00 to Saturday 23:59 and the holiday windows below; 'europe' = Friday 15:00 to Sunday 23:59.",
+  "holidayPeaks": [
+    { "name": "UAE National Day weekend", "from": "2026-11-30", "to": "2026-12-03", "region": "gcc" },
+    { "name": "New Year", "from": "2026-12-30", "to": "2027-01-02", "region": "all" },
+    { "name": "Eid al-Fitr (expected)", "from": "2027-03-07", "to": "2027-03-14", "region": "gcc" },
+    { "name": "Eid al-Adha (expected)", "from": "2027-05-13", "to": "2027-05-20", "region": "gcc" }
+  ],
+  "crossings": [
+    {
+      "id": "nuwaiseeb-khafji", "name": "Nuwaiseeb – Al Khafji", "countries": ["KW", "SA"], "lat": 28.54, "lon": 48.43,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 45, "peak": 150, "holiday": 240 },
+      "costs": [], "notes": ["Queues build on weekend and holiday evenings; leave early in the morning if you can."],
+      "sources": ["https://blog.wego.com/travel-from-kuwait-to-saudi-arabia-by-road/"]
+    },
+    {
+      "id": "salmi-ruqi", "name": "Al Salmi – Al Ruqi", "countries": ["KW", "SA"], "lat": 29.03, "lon": 46.55,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 40, "peak": 120, "holiday": 200 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "abdali-safwan", "name": "Abdali – Safwan", "countries": ["KW", "IQ"], "lat": 30.08, "lon": 47.71,
+      "hours": "Check before travel", "peaks": "gcc", "delay": { "normal": 90, "peak": 180, "holiday": 300 },
+      "costs": [], "notes": ["Rules for private cars change often; check with Kuwaiti and Iraqi authorities first."], "sources": []
+    },
+    {
+      "id": "king-fahd-causeway", "name": "King Fahd Causeway", "countries": ["SA", "BH"], "lat": 26.185, "lon": 50.36,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 40, "peak": 180, "holiday": 240 },
+      "costs": [ { "label": "Causeway toll (car, each way)", "amount": 35, "currency": "SAR", "perPerson": false } ],
+      "notes": ["Live crossing times are shown in the JESR app and on the King Fahd Causeway Authority website.", "App packages can cut the toll by up to 40%."],
+      "sources": ["https://saudigazette.com.sa/article/658633/saudi-arabia/king-fahd-causeway-crossing-fees-set-to-increase-from-february-18", "https://blog.wego.com/king-fahd-causeway-status/"]
+    },
+    {
+      "id": "salwa-abu-samra", "name": "Salwa – Abu Samra", "countries": ["SA", "QA"], "lat": 24.74, "lon": 50.82,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 60, "peak": 150, "holiday": 240 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "batha-ghuwaifat", "name": "Al Batha – Ghuwaifat", "countries": ["SA", "AE"], "lat": 24.13, "lon": 51.62,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 60, "peak": 180, "holiday": 300 },
+      "costs": [], "notes": ["Queues can exceed three hours on Thursday and Friday evenings."],
+      "sources": ["https://houseofsaud.com/travel/saudi-border-crossing/"]
+    },
+    {
+      "id": "empty-quarter", "name": "Empty Quarter (Ramlat Khalid – Rub al Khali)", "countries": ["SA", "OM"], "lat": 22.65, "lon": 55.2,
+      "hours": "Daytime; check before travel", "peaks": "gcc", "delay": { "normal": 45, "peak": 90, "holiday": 150 },
+      "costs": [], "notes": ["Very long stretches with few fuel stations on both sides; fill up before the desert road."], "sources": []
+    },
+    {
+      "id": "hili", "name": "Hili (Al Ain – Buraimi)", "countries": ["AE", "OM"], "lat": 24.26, "lon": 55.77,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 30, "peak": 90, "holiday": 180 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "khatm-al-shikla", "name": "Khatm Al Shikla – Wadi Al Jizzi", "countries": ["AE", "OM"], "lat": 24.17, "lon": 55.88,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 30, "peak": 90, "holiday": 180 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "hatta-wajajah", "name": "Hatta – Al Wajajah", "countries": ["AE", "OM"], "lat": 24.79, "lon": 56.15,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 40, "peak": 120, "holiday": 240 },
+      "costs": [], "notes": [], "sources": ["https://gulfnews.com/living-in-uae/visa-immigration/uae-to-oman-road-trip-eid-2026-1.1689777328887"]
+    },
+    {
+      "id": "haditha-omari", "name": "Al Haditha – Al Omari", "countries": ["SA", "JO"], "lat": 31.43, "lon": 37.17,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 60, "peak": 180, "holiday": 300 },
+      "costs": [ { "label": "Al Hurraneh–Omari road toll (Jordan, small vehicle)", "amount": 0.85, "currency": "JOD", "perPerson": false } ],
+      "notes": ["Busiest Saudi–Jordan crossing; more than 10,000 travellers can pass in a few hours at peak."],
+      "sources": ["https://www.zawya.com/en/economy/levant/jordan-govt-introduces-toll-on-al-hurranehomari-road-to-enhance-transport-efficiency-oapxt4v4", "https://www.zawya.com/en/economy/levant/jordan-omari-crossing-surges-as-over-10-000-travellers-pass-in-hours-e2a9w3h3"]
+    },
+    {
+      "id": "halat-ammar-mudawwara", "name": "Halat Ammar – Al Mudawwara", "countries": ["SA", "JO"], "lat": 29.33, "lon": 36.03,
+      "hours": "24 hours", "peaks": "gcc", "delay": { "normal": 45, "peak": 120, "holiday": 240 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "durra", "name": "Al Durra (Aqaba)", "countries": ["SA", "JO"], "lat": 29.33, "lon": 34.96,
+      "hours": "Check before travel", "peaks": "gcc", "delay": { "normal": 45, "peak": 120, "holiday": 240 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "jaber-nassib", "name": "Jaber – Nassib", "countries": ["JO", "SY"], "lat": 32.54, "lon": 36.21,
+      "hours": "Check before travel", "peaks": "gcc", "delay": { "normal": 60, "peak": 180, "holiday": 300 },
+      "costs": [], "notes": ["Check current travel advice for Syria before planning this crossing."], "sources": []
+    },
+    {
+      "id": "karameh-trebil", "name": "Al Karameh – Trebil", "countries": ["JO", "IQ"], "lat": 33.0, "lon": 38.95,
+      "hours": "Check before travel", "peaks": "gcc", "delay": { "normal": 90, "peak": 180, "holiday": 300 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "jdeidet-yabous-masnaa", "name": "Jdeidet Yabous – Masnaa", "countries": ["SY", "LB"], "lat": 33.69, "lon": 36.0,
+      "hours": "Check before travel", "peaks": "gcc", "delay": { "normal": 60, "peak": 180, "holiday": 300 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "bab-al-hawa-cilvegozu", "name": "Bab al-Hawa – Cilvegözü", "countries": ["SY", "TR"], "lat": 36.23, "lon": 36.67,
+      "hours": "Check before travel", "peaks": "europe", "delay": { "normal": 90, "peak": 180, "holiday": 300 },
+      "costs": [], "notes": [], "sources": []
+    },
+    {
+      "id": "kapikule-kapitan-andreevo", "name": "Kapıkule – Kapitan Andreevo", "countries": ["TR", "BG"], "lat": 41.71, "lon": 26.36,
+      "hours": "24 hours", "peaks": "europe", "delay": { "normal": 60, "peak": 180, "holiday": 300 },
+      "costs": [], "notes": ["EU external border: passport and customs checks, long queues in summer."], "sources": []
+    },
+    {
+      "id": "ipsala-kipoi", "name": "İpsala – Kipoi", "countries": ["TR", "GR"], "lat": 40.92, "lon": 26.34,
+      "hours": "24 hours", "peaks": "europe", "delay": { "normal": 45, "peak": 120, "holiday": 240 },
+      "costs": [], "notes": ["EU external border: passport and customs checks."], "sources": []
+    }
+  ],
+  "entryRules": {
+    "SA": {
+      "requirements": [
+        "Foreign-registered cars need Manafith third-party insurance (manafeth.najm.sa or at the border).",
+        "GCC-registered private cars may stay at most 90 days in any 365 (since 26 August 2026)."
+      ],
+      "costs": [ { "label": "Manafith insurance, 1 week", "amount": 120, "currency": "SAR", "perPerson": false } ],
+      "sources": ["https://gulfnews.com/living-in-uae/transport/driving-from-uae-to-saudi-arabia-heres-how-to-get-your-car-insurance-quickly-1.1726149098720", "https://www.zawya.com/en/economy/saudi-arabia-sets-90-day-limit-for-gcc-registered-vehicles-fines-up-to-531-464341"]
+    },
+    "OM": {
+      "requirements": [
+        "Your car insurance must cover Oman, or buy cover at the border.",
+        "Visa: eligible UAE residents can get one on arrival (OMR 5); others need an eVisa."
+      ],
+      "costs": [],
+      "sources": ["https://gulfnews.com/living-in-uae/visa-immigration/uae-to-oman-road-trip-eid-2026-1.1689777328887"]
+    },
+    "JO": {
+      "requirements": [
+        "Foreign-registered vehicles need a Carnet de Passage; travellers without one have been refused entry.",
+        "Third-party insurance is mandatory and can be bought at the land border."
+      ],
+      "costs": [],
+      "sources": ["https://www.madornomad.com/how-to-ship-a-motorcycle-to-and-from-jordan-the-complete-guide/"]
+    }
+  },
+  "exitRules": {
+    "AE": {
+      "requirements": ["UAE exit fee at land borders, paid on the UAE side."],
+      "costs": [ { "label": "UAE land exit fee", "amount": 35, "currency": "AED", "perPerson": true } ],
+      "sources": ["https://gulfnews.com/travel/al-madam-hatta-diversion-expats-not-allowed-on-oman-e44-1.1648517"]
+    }
+  },
+  "openBorderGroups": [
+    {
+      "name": "Schengen area",
+      "countries": ["AT", "BE", "BG", "CH", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", "SK"],
+      "note": "Open border inside the Schengen area: no routine checks, though spot checks happen."
+    }
+  ],
+  "defaultDelay": { "normal": 30, "peak": 60, "holiday": 120 }
+}

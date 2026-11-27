@@ -24,7 +24,7 @@ public sealed class ManualFuelPriceProvider(IEnumerable<ManualFuelPriceOverride>
             NormalizeCountry(manualPrice.CountryCode),
             manualPrice.FuelType,
             manualPrice.PricePerLiter,
-            NormalizeCurrency(manualPrice.Currency),
+            NormalizeCurrency(manualPrice.Currency, manualPrice.CountryCode),
             "Manual",
             manualPrice.EffectiveDate,
             DateTimeOffset.UtcNow,
@@ -36,84 +36,78 @@ public sealed class ManualFuelPriceProvider(IEnumerable<ManualFuelPriceOverride>
 
     private static string NormalizeCountry(string countryCode) => countryCode.Trim().ToUpperInvariant();
 
-    private static string NormalizeCurrency(string currency) =>
-        string.IsNullOrWhiteSpace(currency) ? "KWD" : currency.Trim().ToUpperInvariant();
+    private static string NormalizeCurrency(string? currency, string countryCode) =>
+        string.IsNullOrWhiteSpace(currency)
+            ? CountryCatalog.GetLocalCurrency(countryCode) ?? "KWD"
+            : currency.Trim().ToUpperInvariant();
 }
 
+/// <summary>
+/// Last-resort pump prices for countries with no live or official feed, read from Fuel/Data/seed-prices.json.
+/// That file is built by tools/data/build_world_data.py from, in priority order:
+/// <list type="number">
+/// <item>tools/data/curated-prices.csv: prices checked by hand, each with its source.</item>
+/// <item>The EU Weekly Oil Bulletin (all 27 EU countries, weekly, official).</item>
+/// <item>The World Bank Global Fuel Prices Database (about 140 countries, monthly to April 2025).</item>
+/// </list>
+/// Every quote carries its source, the date the price took effect and a confidence level.
+/// </summary>
 public sealed class StaticSeedFuelPriceProvider : IFuelPriceProvider
 {
-    private readonly Dictionary<(string CountryCode, FuelType FuelType), FuelPriceQuote> _prices;
+    private static readonly Lazy<SeedData> Data = new(Load);
 
-    public StaticSeedFuelPriceProvider()
-    {
-        var fetchedAt = DateTimeOffset.UtcNow;
-        var effectiveDate = new DateOnly(2026, 1, 1);
-
-        _prices = new Dictionary<(string CountryCode, FuelType FuelType), FuelPriceQuote>
-        {
-            [("KW", FuelType.GASOLINE_91)] = Seed("KW", FuelType.GASOLINE_91, 0.085m, "KWD", effectiveDate, fetchedAt),
-            [("KW", FuelType.GASOLINE_95)] = Seed("KW", FuelType.GASOLINE_95, 0.105m, "KWD", effectiveDate, fetchedAt),
-            [("KW", FuelType.GASOLINE_98)] = Seed("KW", FuelType.GASOLINE_98, 0.165m, "KWD", effectiveDate, fetchedAt),
-            [("KW", FuelType.DIESEL)] = Seed("KW", FuelType.DIESEL, 0.115m, "KWD", effectiveDate, fetchedAt),
-
-            [("SA", FuelType.GASOLINE_91)] = Seed("SA", FuelType.GASOLINE_91, 2.180m, "SAR", effectiveDate, fetchedAt),
-            [("SA", FuelType.GASOLINE_95)] = Seed("SA", FuelType.GASOLINE_95, 2.330m, "SAR", effectiveDate, fetchedAt),
-            [("SA", FuelType.DIESEL)] = Seed("SA", FuelType.DIESEL, 1.660m, "SAR", effectiveDate, fetchedAt),
-
-            [("QA", FuelType.GASOLINE_91)] = Seed("QA", FuelType.GASOLINE_91, 1.950m, "QAR", effectiveDate, fetchedAt),
-            [("QA", FuelType.GASOLINE_95)] = Seed("QA", FuelType.GASOLINE_95, 2.100m, "QAR", effectiveDate, fetchedAt),
-            [("QA", FuelType.DIESEL)] = Seed("QA", FuelType.DIESEL, 2.050m, "QAR", effectiveDate, fetchedAt),
-
-            [("AE", FuelType.GASOLINE_91)] = Seed("AE", FuelType.GASOLINE_91, 2.850m, "AED", effectiveDate, fetchedAt),
-            [("AE", FuelType.GASOLINE_95)] = Seed("AE", FuelType.GASOLINE_95, 2.970m, "AED", effectiveDate, fetchedAt),
-            [("AE", FuelType.GASOLINE_98)] = Seed("AE", FuelType.GASOLINE_98, 3.080m, "AED", effectiveDate, fetchedAt),
-            [("AE", FuelType.DIESEL)] = Seed("AE", FuelType.DIESEL, 2.900m, "AED", effectiveDate, fetchedAt),
-
-            [("BH", FuelType.GASOLINE_91)] = Seed("BH", FuelType.GASOLINE_91, 0.140m, "BHD", effectiveDate, fetchedAt),
-            [("BH", FuelType.GASOLINE_95)] = Seed("BH", FuelType.GASOLINE_95, 0.200m, "BHD", effectiveDate, fetchedAt),
-            [("BH", FuelType.DIESEL)] = Seed("BH", FuelType.DIESEL, 0.120m, "BHD", effectiveDate, fetchedAt),
-
-            [("OM", FuelType.GASOLINE_91)] = Seed("OM", FuelType.GASOLINE_91, 0.229m, "OMR", effectiveDate, fetchedAt),
-            [("OM", FuelType.GASOLINE_95)] = Seed("OM", FuelType.GASOLINE_95, 0.239m, "OMR", effectiveDate, fetchedAt),
-            [("OM", FuelType.DIESEL)] = Seed("OM", FuelType.DIESEL, 0.258m, "OMR", effectiveDate, fetchedAt)
-        };
-    }
+    /// <summary>The day the seed sources were checked.</summary>
+    public static DateOnly CheckedOn => Data.Value.CheckedOn;
 
     public Task<FuelPriceQuote?> GetPriceAsync(
         string countryCode,
         FuelType fuelType,
         CancellationToken cancellationToken = default)
     {
-        _prices.TryGetValue((NormalizeCountry(countryCode), fuelType), out var quote);
+        Data.Value.Prices.TryGetValue((NormalizeCountry(countryCode), fuelType), out var quote);
         return Task.FromResult<FuelPriceQuote?>(quote);
     }
 
     public IReadOnlyList<FuelPriceQuote> ListPrices() =>
-        _prices.Values
+        Data.Value.Prices.Values
             .OrderBy(quote => quote.CountryCode)
             .ThenBy(quote => quote.FuelType)
             .ToArray();
 
-    private static FuelPriceQuote Seed(
-        string countryCode,
-        FuelType fuelType,
-        decimal pricePerLiter,
-        string currency,
-        DateOnly effectiveDate,
-        DateTimeOffset fetchedAt) =>
-        new(
-            countryCode,
-            fuelType,
-            pricePerLiter,
-            currency,
-            "Seed",
-            effectiveDate,
-            fetchedAt,
-            ConfidenceLevel.LOW,
-            false);
+    private static SeedData Load()
+    {
+        using var document = EmbeddedData.Load("seed-prices.json");
+        var root = document.RootElement;
+        var checkedOn = DateOnly.Parse(root.GetProperty("checkedOn").GetString()!);
+        var checkedAt = new DateTimeOffset(checkedOn.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var prices = new Dictionary<(string CountryCode, FuelType FuelType), FuelPriceQuote>();
+
+        foreach (var row in root.GetProperty("prices").EnumerateArray())
+        {
+            var country = NormalizeCountry(row.GetProperty("country").GetString()!);
+            var fuel = Enum.Parse<FuelType>(row.GetProperty("fuel").GetString()!);
+
+            prices[(country, fuel)] = new FuelPriceQuote(
+                country,
+                fuel,
+                row.GetProperty("price").GetDecimal(),
+                row.GetProperty("currency").GetString()!,
+                $"Seed: {row.GetProperty("source").GetString()}",
+                DateOnly.Parse(row.GetProperty("effective").GetString()!),
+                checkedAt,
+                Enum.Parse<ConfidenceLevel>(row.GetProperty("confidence").GetString()!),
+                false);
+        }
+
+        return new SeedData(checkedOn, prices);
+    }
 
     private static string NormalizeCountry(string countryCode) =>
         string.IsNullOrWhiteSpace(countryCode) ? "UNKNOWN" : countryCode.Trim().ToUpperInvariant();
+
+    private sealed record SeedData(
+        DateOnly CheckedOn,
+        IReadOnlyDictionary<(string CountryCode, FuelType FuelType), FuelPriceQuote> Prices);
 }
 
 public sealed class CompositeFuelPriceProvider(IEnumerable<IFuelPriceProvider> providers) : IFuelPriceProvider
@@ -138,22 +132,3 @@ public sealed class CompositeFuelPriceProvider(IEnumerable<IFuelPriceProvider> p
         return null;
     }
 }
-
-public abstract class FutureFuelPriceProvider(string sourceName) : IFuelPriceProvider
-{
-    public string SourceName { get; } = sourceName;
-
-    public Task<FuelPriceQuote?> GetPriceAsync(
-        string countryCode,
-        FuelType fuelType,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult<FuelPriceQuote?>(null);
-}
-
-public sealed class SaudiAramcoFuelPriceProvider() : FutureFuelPriceProvider("Saudi Aramco");
-
-public sealed class AdnocFuelPriceProvider() : FutureFuelPriceProvider("ADNOC");
-
-public sealed class QatarFuelPriceProvider() : FutureFuelPriceProvider("Qatar Energy");
-
-public sealed class GlobalPetrolPricesProvider() : FutureFuelPriceProvider("GlobalPetrolPrices");
