@@ -211,7 +211,8 @@ public static class RefuelPlanner
                 why += $" Limited to {cap:0} L per fill here.";
             }
 
-            amount = Round(amount);
+            // Round up to the millilitre so the plan is never short of the reserve, but never past a full tank.
+            amount = Math.Min(Math.Ceiling(amount * 1000d - 1e-6) / 1000d, Round(space));
 
             if (amount <= 0.0005d)
             {

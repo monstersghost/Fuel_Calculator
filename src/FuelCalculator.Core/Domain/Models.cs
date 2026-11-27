@@ -94,6 +94,9 @@ public sealed record TripFuelCostInput(
 
     /// <summary>Share of the tank kept in hand when planning refuels; never planned below this.</summary>
     public double ReservePercentage { get; init; } = 15d;
+
+    /// <summary>Real fuel stations on the route; when empty, stand-in stations are placed by country.</summary>
+    public IReadOnlyList<FuelCalculator.Core.Planning.RefuelCandidate> Stations { get; init; } = [];
 }
 
 public sealed record TripSegmentCost(

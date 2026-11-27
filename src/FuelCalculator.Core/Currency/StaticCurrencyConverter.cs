@@ -2,33 +2,27 @@ using FuelCalculator.Core.Domain;
 
 namespace FuelCalculator.Core.Currency;
 
+/// <summary>
+/// Converts with a dated snapshot of rates against the US dollar (Exchange Rate API, 166 currencies),
+/// embedded as Currency/Data/fx-usd.json. Rates By Exchange Rate API: https://www.exchangerate-api.com.
+/// </summary>
 public sealed class StaticCurrencyConverter : ICurrencyConverter
 {
-    private readonly IReadOnlyDictionary<string, decimal> _valueInKwd;
+    private static readonly Lazy<(DateOnly AsOf, IReadOnlyDictionary<string, decimal> Rates)> Snapshot = new(LoadSnapshot);
 
-    public StaticCurrencyConverter(IReadOnlyDictionary<string, decimal>? valueInKwd = null)
+    private readonly IReadOnlyDictionary<string, decimal> _perUsd;
+
+    /// <param name="ratesPerUsd">Units of each currency per one US dollar; the embedded snapshot when null.</param>
+    public StaticCurrencyConverter(IReadOnlyDictionary<string, decimal>? ratesPerUsd = null)
     {
-        _valueInKwd = valueInKwd ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
-        {
-            // Value of one unit in KWD, from USD = 0.3075 KWD. SAR, AED, QAR, BHD, OMR and JOD are pegged
-            // to the dollar, so their rows are exact. The rest are static estimates checked 2026-11-27:
-            // EGP ~53.7/USD (bank quotes, 15 Nov 2026), IQD 1,310/USD (official), LBP ~89,600/USD,
-            // SYP ~115/USD in new pounds (two zeros dropped on 1 Jan 2026), EUR approximate.
-            ["KWD"] = 1.0000m,
-            ["USD"] = 0.3075m,
-            ["SAR"] = 0.3075m / 3.75m,
-            ["AED"] = 0.3075m / 3.6725m,
-            ["QAR"] = 0.3075m / 3.64m,
-            ["BHD"] = 0.3075m / 0.376m,
-            ["OMR"] = 0.3075m / 0.3845m,
-            ["JOD"] = 0.3075m / 0.709m,
-            ["EUR"] = 0.3560m,
-            ["EGP"] = 0.3075m / 53.7m,
-            ["IQD"] = 0.3075m / 1310m,
-            ["LBP"] = 0.3075m / 89600m,
-            ["SYP"] = 0.3075m / 115m
-        };
+        _perUsd = ratesPerUsd ?? Snapshot.Value.Rates;
     }
+
+    /// <summary>The day the embedded rates were published.</summary>
+    public static DateOnly SnapshotDate => Snapshot.Value.AsOf;
+
+    /// <summary>Every currency code in the embedded snapshot, sorted.</summary>
+    public static IReadOnlyList<string> Currencies => Snapshot.Value.Rates.Keys.Order(StringComparer.Ordinal).ToArray();
 
     public Task<CurrencyConversionResult?> ConvertAsync(
         decimal amount,
@@ -39,23 +33,36 @@ public sealed class StaticCurrencyConverter : ICurrencyConverter
         var from = Normalize(fromCurrency);
         var to = Normalize(toCurrency);
 
-        if (!_valueInKwd.TryGetValue(from, out var fromValueInKwd)
-            || !_valueInKwd.TryGetValue(to, out var toValueInKwd)
-            || toValueInKwd == 0)
+        if (!_perUsd.TryGetValue(from, out var fromPerUsd)
+            || !_perUsd.TryGetValue(to, out var toPerUsd)
+            || fromPerUsd == 0)
         {
             return Task.FromResult<CurrencyConversionResult?>(null);
         }
 
-        var rate = fromValueInKwd / toValueInKwd;
-        var converted = amount * rate;
+        var rate = toPerUsd / fromPerUsd;
 
         return Task.FromResult<CurrencyConversionResult?>(new CurrencyConversionResult(
-            converted,
+            amount * rate,
             from,
             to,
             rate));
     }
 
+    private static (DateOnly, IReadOnlyDictionary<string, decimal>) LoadSnapshot()
+    {
+        using var document = EmbeddedData.Load("fx-usd.json");
+        var root = document.RootElement;
+        var rates = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rate in root.GetProperty("rates").EnumerateObject())
+        {
+            rates[rate.Name] = rate.Value.GetDecimal();
+        }
+
+        return (DateOnly.Parse(root.GetProperty("asOf").GetString()!), rates);
+    }
+
     private static string Normalize(string currency) =>
-        string.IsNullOrWhiteSpace(currency) ? "KWD" : currency.Trim().ToUpperInvariant();
+        string.IsNullOrWhiteSpace(currency) ? "USD" : currency.Trim().ToUpperInvariant();
 }

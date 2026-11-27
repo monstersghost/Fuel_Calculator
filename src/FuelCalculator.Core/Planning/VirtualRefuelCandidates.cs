@@ -64,6 +64,41 @@ public static class CountryRefuelRules
     private const double OmanCapLiters = 30d;
     private const double OmanBorderZoneKm = 50d;
 
+    /// <summary>
+    /// Applies the rules to stations placed on a route, using the route's ordered country segments to
+    /// know where each border is. A station keeps any cap it already had when no rule applies.
+    /// </summary>
+    public static IReadOnlyList<RefuelCandidate> Apply(
+        IReadOnlyList<RefuelCandidate> candidates,
+        IReadOnlyList<CountryRouteSegment> orderedSegments)
+    {
+        var segments = orderedSegments.Where(segment => segment.DistanceKm > 0).ToArray();
+        var zones = new List<(double Start, double End, bool BorderAtStart, bool BorderAtEnd)>();
+        var start = 0d;
+
+        for (var i = 0; i < segments.Length; i++)
+        {
+            zones.Add((start, start + segments[i].DistanceKm, i > 0, i < segments.Length - 1));
+            start += segments[i].DistanceKm;
+        }
+
+        return candidates
+            .Select(candidate =>
+            {
+                var zone = zones.FirstOrDefault(z => candidate.DistanceKm >= z.Start && candidate.DistanceKm < z.End);
+
+                if (zone == default)
+                {
+                    return candidate;
+                }
+
+                var cap = MaxLitersNearBorder(candidate.CountryCode, candidate.DistanceKm, zone.Start, zone.End, zone.BorderAtStart, zone.BorderAtEnd);
+                return cap is null ? candidate : candidate with { MaxLiters = cap };
+            })
+            .OrderBy(candidate => candidate.DistanceKm)
+            .ToArray();
+    }
+
     public static double? MaxLitersNearBorder(string countryCode, double km, double countryStartKm, double countryEndKm, bool borderAtStart, bool borderAtEnd)
     {
         if (!countryCode.Equals(OmanCode, StringComparison.OrdinalIgnoreCase))

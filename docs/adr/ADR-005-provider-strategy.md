@@ -20,8 +20,9 @@ Use provider interfaces for all external or replaceable data:
 | Route calculation | `IRouteProvider` | `MockRouteProvider` | `GoogleRoutesProvider` with Google Routes API |
 | Country segmentation | `IRouteCountrySegmenter` | `PolylineCountrySegmenter` using sampled decoded polyline points | PostGIS route/polygon intersection |
 | Country lookup | `ICountryResolver` | `PolygonCountryResolver` (Natural Earth 1:50m borders, embedded) | PostGIS or geocoding-backed resolver |
-| Fuel prices | `IFuelPriceProvider` | `ManualFuelPriceProvider`, `StaticSeedFuelPriceProvider` | Saudi Aramco, ADNOC, Qatar, GlobalPetrolPrices, official feeds |
-| FX conversion | `ICurrencyConverter` | `StaticCurrencyConverter` | Live FX provider |
+| Fuel prices | `IFuelPriceProvider` | `ManualFuelPriceProvider`, `StaticSeedFuelPriceProvider` (151 countries: curated > EU Oil Bulletin > World Bank, built by `tools/data`) | Saudi Aramco, ADNOC, Qatar, GlobalPetrolPrices, official feeds |
+| FX conversion | `ICurrencyConverter` | `StaticCurrencyConverter` (Exchange Rate API snapshot, 166 currencies) | Live FX provider |
+| Fuel stations | `IFuelStationProvider` | `OverpassFuelStationProvider` (OpenStreetMap), stand-in stations as fallback | Self-hosted Overpass or regional extracts |
 | Vehicle data | `IVehicleDataProvider` | `NullVehicleDataProvider` | FuelEconomy.gov or regional equivalent |
 
 ### Manual Override Rule

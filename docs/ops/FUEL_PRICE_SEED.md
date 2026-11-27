@@ -1,10 +1,14 @@
 # Fuel price seed table
 
+> **Since 2026-11-27 the seed covers 151 countries.** It is built by `tools/data/build_world_data.py`, and the
+> hand-checked rows live in `tools/data/curated-prices.csv`; see `tools/data/README.md`. The tables below record the
+> Middle East research behind the first curated rows.
+
 The seed table (`StaticSeedFuelPriceProvider`) is the last fallback, used only when there is no manual price and no
 live or official feed for a country. Every price was checked on **2026-11-27**. Each row in the code carries its source,
 the date it took effect and a confidence level, and the API returns all three with the quote.
 
-**Update this file and the table together.** Most GCC prices change on the 1st of the month:
+**When you update prices, edit `curated-prices.csv` and rebuild.** Most GCC prices change on the 1st of the month:
 - UAE and Qatar announce on the last day of the month.
 - Kuwait sets prices quarterly.
 - Oman and Bahrain set them monthly.
@@ -33,6 +37,10 @@ closure of the Strait of Hormuz.
 - If it sells the grade but no price was found: "No 91 Octane price for IQ; used the 95 Octane price as an estimate".
 
 ## Exchange rates (`StaticCurrencyConverter`)
+
+> Superseded: rates now come from the embedded Exchange Rate API snapshot (166 currencies, 2026-11-27). In that
+> snapshot KWD is 0.312 per USD, SYP about 121.7 (new pounds) and IQD about 1,514 (market). The notes below are the
+> earlier hand-set values.
 
 - **Fixed to the US dollar, so these are exact:** SAR 3.75, AED 3.6725, QAR 3.64, BHD 0.376, OMR 0.3845 and JOD 0.709 per USD.
 - **Estimated, checked 2026-11-27:**

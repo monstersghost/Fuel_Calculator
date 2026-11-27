@@ -17,7 +17,30 @@ const consumptionUnits = [
   { value: 'UK_MPG', label: 'UK MPG' },
 ];
 
-const currencies = ['KWD', 'SAR', 'AED', 'QAR', 'BHD', 'OMR', 'USD', 'EUR', 'JOD', 'SYP'];
+// Shown first in the currency lists; the rest come from the API's exchange-rate snapshot.
+const commonCurrencies = ['KWD', 'SAR', 'AED', 'QAR', 'BHD', 'OMR', 'USD', 'EUR', 'GBP', 'JOD'];
+
+function useCurrencies() {
+  const [data, setData] = React.useState({ currencies: commonCurrencies, asOf: null });
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/currencies')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (!cancelled && body?.currencies?.length) {
+          const rest = body.currencies.filter((code) => !commonCurrencies.includes(code));
+          setData({ currencies: [...commonCurrencies, ...rest], asOf: body.asOf });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return data;
+}
 
 const initialForm = {
   googleMapsLink: '',
@@ -46,6 +69,7 @@ function App() {
   const [result, setResult] = React.useState(null);
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
+  const { currencies, asOf: ratesAsOf } = useCurrencies();
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -315,6 +339,12 @@ function App() {
             <Calculator size={19} />
             {loading ? 'Calculating' : 'Calculate'}
           </button>
+          <p className="attribution">
+            <a href="https://www.exchangerate-api.com" target="_blank" rel="noreferrer">
+              Rates By Exchange Rate API
+            </a>
+            {ratesAsOf ? ` · ${ratesAsOf}` : ''}
+          </p>
         </form>
 
         <section className="results-space">
@@ -511,6 +541,7 @@ function RefuelPlanView({ plan, currency }) {
               <div className="refuel-where">
                 <strong>km {formatNumber(stop.distanceKm)}</strong>
                 <span className="country-chip">{stop.countryCode}</span>
+                {stop.name ? <span className="station-name">{stop.name}</span> : null}
               </div>
               <div className="refuel-what">
                 <strong>
@@ -534,6 +565,15 @@ function RefuelPlanView({ plan, currency }) {
         Bought {formatMoney(plan.purchasedCost)} + fuel you start with {formatMoney(plan.startFuelValue)} − fuel left on arrival{' '}
         {formatMoney(plan.arrivalFuelValue)} = <strong>{formatMoney(plan.tripFuelCost)} {currency}</strong>
       </p>
+
+      {plan.warnings?.some((warning) => warning.includes('OpenStreetMap fuel stations')) ? (
+        <p className="attribution">
+          Fuel stations ©{' '}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+            OpenStreetMap contributors
+          </a>
+        </p>
+      ) : null}
 
       {plan.warnings?.length ? (
         <div className={plan.isFeasible ? 'notice subtle' : 'notice error'}>

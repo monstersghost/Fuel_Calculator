@@ -410,6 +410,22 @@ textarea:focus {
   }
 }
 
+.station-name {
+  color: #475569;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.attribution {
+  margin: 0;
+  color: #607086;
+  font-size: 0.78rem;
+}
+
+.attribution a {
+  color: inherit;
+}
+
 .grade-note {
   display: block;
   color: #607086;

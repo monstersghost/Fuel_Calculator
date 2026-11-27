@@ -10,7 +10,7 @@ namespace FuelCalculator.Core.Segmentation;
 /// </summary>
 public sealed class PolygonCountryResolver : ICountryResolver
 {
-    private const string ResourceName = "FuelCalculator.Core.region-countries.json";
+    private const string ResourceName = "FuelCalculator.Core.world-countries.json";
     private const double KmPerDegreeLatitude = 110.574d;
     private const double KmPerDegreeLongitudeAtEquator = 111.320d;
 

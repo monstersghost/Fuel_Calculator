@@ -4,6 +4,7 @@ using FuelCalculator.Core.Calculation;
 using FuelCalculator.Core.Currency;
 using FuelCalculator.Core.Domain;
 using FuelCalculator.Core.Fuel;
+using FuelCalculator.Core.Planning;
 using FuelCalculator.Core.Routing;
 using FuelCalculator.Core.Segmentation;
 using FuelCalculator.Core.Vehicles;
@@ -50,6 +51,25 @@ builder.Services.AddHttpClient<IGoogleMapsLinkResolver, GoogleMapsLinkResolver>(
 builder.Services.AddSingleton<IVehicleProfileRepository, InMemoryVehicleProfileRepository>();
 builder.Services.AddSingleton<IVehicleDataProvider, NullVehicleDataProvider>();
 builder.Services.AddHttpClient<GoogleRoutesProvider>();
+
+// Fuel stations: "Overpass" (OpenStreetMap), "Virtual" (stand-ins by country) or "Auto" (Overpass when routes
+// come from Google, Virtual for the mock routes, whose straight lines don't follow real roads).
+var stationsMode = builder.Configuration.GetValue<string>("FuelStations:Mode") ?? "Auto";
+var routeMode = builder.Configuration.GetValue<string>("RouteProvider:Mode") ?? "Mock";
+var useOverpass = stationsMode.Equals("Overpass", StringComparison.OrdinalIgnoreCase)
+    || (stationsMode.Equals("Auto", StringComparison.OrdinalIgnoreCase) && routeMode.Equals("Google", StringComparison.OrdinalIgnoreCase));
+var stationOptions = new FuelStationSettings(
+    useOverpass,
+    builder.Configuration.GetValue<double?>("FuelStations:CorridorKm") ?? 2d,
+    TimeSpan.FromSeconds(builder.Configuration.GetValue<double?>("FuelStations:TimeoutSeconds") ?? 60d));
+builder.Services.AddSingleton(stationOptions);
+builder.Services.AddHttpClient<IFuelStationProvider, OverpassFuelStationProvider>(client => client.Timeout = stationOptions.Timeout)
+    .AddTypedClient<IFuelStationProvider>(client => new OverpassFuelStationProvider(client, new OverpassOptions
+    {
+        Endpoints = builder.Configuration.GetSection("FuelStations:Endpoints").Get<string[]>() is { Length: > 0 } endpoints
+            ? endpoints
+            : new OverpassOptions().Endpoints
+    }));
 builder.Services.AddSingleton<IRouteProvider>(sp =>
 {
     var mode = builder.Configuration.GetValue<string>("RouteProvider:Mode") ?? "Mock";
@@ -84,6 +104,14 @@ app.MapGet("/api/consumption-units", () => ConsumptionUnitCatalog.All.Select(uni
 {
     value = unit.ToString(),
     displayName = ConsumptionUnitCatalog.GetDisplayName(unit)
+}));
+
+app.MapGet("/api/currencies", () => Results.Ok(new
+{
+    asOf = StaticCurrencyConverter.SnapshotDate,
+    attribution = "Rates By Exchange Rate API",
+    attributionUrl = "https://www.exchangerate-api.com",
+    currencies = StaticCurrencyConverter.Currencies
 }));
 
 app.MapGet("/api/fuel-prices/seed", ([FromServices] StaticSeedFuelPriceProvider provider) =>
@@ -129,6 +157,9 @@ app.MapPost("/api/trips/estimate", async (
     [FromServices] IGoogleMapsLinkResolver mapsLinkResolver,
     [FromServices] TripFuelCostCalculator calculator,
     [FromServices] ILogger<Program> logger,
+    [FromServices] IFuelStationProvider stationProvider,
+    [FromServices] FuelStationSettings stationSettings,
+    [FromServices] ICountryResolver countryResolver,
     CancellationToken cancellationToken) =>
 {
     var warnings = new List<string>();
@@ -169,6 +200,30 @@ app.MapPost("/api/trips/estimate", async (
     var countrySegmentation = await countrySegmenter.SegmentAsync(route, cancellationToken);
     warnings.AddRange(countrySegmentation.Warnings);
 
+    IReadOnlyList<RefuelCandidate> stations = [];
+
+    if (stationSettings.UseOverpass && normalizedRequest.TankSizeLiters is not null && route.Points.Count >= 2)
+    {
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(stationSettings.Timeout);
+            var projection = new RouteProjection(route.Points);
+            var found = await stationProvider.GetStationsAsync(route.Points, stationSettings.CorridorKm, timeout.Token);
+            stations = await FuelStationSnapper.SnapAsync(projection, found, stationSettings.CorridorKm, countryResolver, timeout.Token);
+
+            if (stations.Count == 0)
+            {
+                warnings.Add("No fuel stations were found near the route in OpenStreetMap; stops are placed by country instead.");
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            logger.LogWarning(ex, "Fuel station lookup failed.");
+            warnings.Add("Fuel stations could not be loaded from OpenStreetMap; stops are placed by country instead.");
+        }
+    }
+
     var manualProvider = new ManualFuelPriceProvider(normalizedRequest.ManualFuelPrices);
     var fuelPriceProvider = new CompositeFuelPriceProvider([manualProvider, seedFuelPriceProvider]);
     var result = await calculator.CalculateAsync(
@@ -181,7 +236,8 @@ app.MapPost("/api/trips/estimate", async (
             normalizedRequest.CurrentFuelPercentage)
         {
             DurationMinutes = route.Duration?.TotalMinutes,
-            ReservePercentage = normalizedRequest.ReservePercentage
+            ReservePercentage = normalizedRequest.ReservePercentage,
+            Stations = stations
         },
         fuelPriceProvider,
         currencyConverter,
@@ -392,6 +448,8 @@ internal sealed record NormalizedTripRequest(
     double? CurrentFuelPercentage,
     double ReservePercentage,
     IReadOnlyList<ManualFuelPriceOverride> ManualFuelPrices);
+
+internal sealed record FuelStationSettings(bool UseOverpass, double CorridorKm, TimeSpan Timeout);
 
 internal sealed record TripRequestValidationResult(
     IReadOnlyList<string> Errors,

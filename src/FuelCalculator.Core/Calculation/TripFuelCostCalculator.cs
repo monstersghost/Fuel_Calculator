@@ -7,6 +7,9 @@ namespace FuelCalculator.Core.Calculation;
 
 public sealed class TripFuelCostCalculator
 {
+    /// <summary>A seed or provider price older than this gets a warning.</summary>
+    public const int StalePriceMonths = 6;
+
     public async Task<TripEstimateResult> CalculateAsync(
         TripFuelCostInput input,
         IFuelPriceProvider fuelPriceProvider,
@@ -59,6 +62,12 @@ public sealed class TripFuelCostCalculator
 
             decimal? localCost = null;
             decimal? convertedCost = null;
+
+            if (quote is { IsUserProvided: false, EffectiveDate: { } effective }
+                && effective < DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-StalePriceMonths))
+            {
+                warnings.Add($"{segment.CountryCode} price is from {effective:MMM yyyy} and may be out of date; enter a manual price if you know a newer one.");
+            }
 
             if (quote is null)
             {
@@ -120,17 +129,16 @@ public sealed class TripFuelCostCalculator
                 fuelStops.TankSizeLiters,
                 fuelStops.StartingFuelPercentage,
                 fuelStops.ReservePercentage,
-                VirtualRefuelCandidates.FromSegments(input.CountrySegments),
+                input.Stations.Count > 0
+                    ? CountryRefuelRules.Apply(input.Stations, input.CountrySegments)
+                    : VirtualRefuelCandidates.FromSegments(input.CountrySegments),
                 refuelPrices));
 
-            refuelPlan = refuelPlan with
-            {
-                Warnings =
-                [
-                    "Fuel stops are placed along the route by country; real station locations are not checked yet.",
-                    .. refuelPlan.Warnings
-                ]
-            };
+            var stationNote = input.Stations.Count > 0
+                ? $"Fuel stops use {input.Stations.Count} OpenStreetMap fuel stations near the route; check opening hours before relying on remote ones."
+                : "Fuel stops are placed along the route by country; real station locations are not checked.";
+
+            refuelPlan = refuelPlan with { Warnings = [stationNote, .. refuelPlan.Warnings] };
 
             if (refuelPlan.IsComplete && refuelPlan.IsFeasible && countriesMissingPrice.Length == 0)
             {
