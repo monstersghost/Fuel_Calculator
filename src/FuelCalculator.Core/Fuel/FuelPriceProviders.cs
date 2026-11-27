@@ -132,22 +132,3 @@ public sealed class CompositeFuelPriceProvider(IEnumerable<IFuelPriceProvider> p
         return null;
     }
 }
-
-public abstract class FutureFuelPriceProvider(string sourceName) : IFuelPriceProvider
-{
-    public string SourceName { get; } = sourceName;
-
-    public Task<FuelPriceQuote?> GetPriceAsync(
-        string countryCode,
-        FuelType fuelType,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult<FuelPriceQuote?>(null);
-}
-
-public sealed class SaudiAramcoFuelPriceProvider() : FutureFuelPriceProvider("Saudi Aramco");
-
-public sealed class AdnocFuelPriceProvider() : FutureFuelPriceProvider("ADNOC");
-
-public sealed class QatarFuelPriceProvider() : FutureFuelPriceProvider("Qatar Energy");
-
-public sealed class GlobalPetrolPricesProvider() : FutureFuelPriceProvider("GlobalPetrolPrices");

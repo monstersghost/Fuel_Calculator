@@ -25,6 +25,12 @@ public sealed record EstimateTripRequest
     /// <summary>Share of the tank to keep in hand when estimating refuels. Defaults to 15%.</summary>
     public double? ReservePercentage { get; init; }
 
+    /// <summary>Local departure time, used for border waits and the arrival time. Optional.</summary>
+    public DateTime? DepartureTime { get; init; }
+
+    /// <summary>People in the car, for per-person border fees. Defaults to 1.</summary>
+    public int? Passengers { get; init; }
+
     public IReadOnlyList<ManualFuelPriceRequest> ManualFuelPrices { get; init; } = [];
 }
 

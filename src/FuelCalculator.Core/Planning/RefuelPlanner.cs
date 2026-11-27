@@ -18,6 +18,9 @@ public static class RefuelPlanner
 {
     private const double Epsilon = 1e-9;
 
+    /// <summary>The least a planned stop buys, so the plan doesn't suggest stopping for a splash of fuel.</summary>
+    public const double MinimumPurchaseLiters = 5d;
+
     public static RefuelPlan Plan(RefuelPlanInput input)
     {
         if (input.LPer100Km <= 0 || input.TankLiters <= 0 || input.TotalDistanceKm < 0)
@@ -211,13 +214,21 @@ public static class RefuelPlanner
                 why += $" Limited to {cap:0} L per fill here.";
             }
 
-            // Round up to the millilitre so the plan is never short of the reserve, but never past a full tank.
-            amount = Math.Min(Math.Ceiling(amount * 1000d - 1e-6) / 1000d, Round(space));
-
             if (amount <= 0.0005d)
             {
                 return 0d;
             }
+
+            // A stop is worth at least a few litres; round up to the millilitre so the plan is never short of
+            // the reserve, but never past a full tank or a station's cap.
+            amount = Math.Max(amount, MinimumPurchaseLiters);
+
+            if (station.MaxLiters is { } limit)
+            {
+                amount = Math.Min(amount, limit);
+            }
+
+            amount = Math.Min(Math.Ceiling(amount * 1000d - 1e-6) / 1000d, Round(space));
 
             var price = input.Prices.GetValueOrDefault(station.CountryCode);
             var before = fuel;
@@ -234,7 +245,8 @@ public static class RefuelPlanner
                 price?.PricePerLiterInOutput is { } converted ? Money((decimal)amount * converted) : null,
                 Round(before / capacity * 100d),
                 Round(fuel / capacity * 100d),
-                why));
+                why,
+                station.Open24Hours));
 
             return amount;
         }

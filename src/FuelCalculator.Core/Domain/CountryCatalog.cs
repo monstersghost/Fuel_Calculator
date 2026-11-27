@@ -29,6 +29,16 @@ public static class CountryCatalog
 
     private static readonly Lazy<IReadOnlyDictionary<string, CountryInfo>> Countries = new(Load);
 
+    // How often governments reset regulated pump prices (checked 2026-11-27).
+    private static readonly Dictionary<string, PriceCycle> PriceCycles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["AE"] = PriceCycle.Monthly, ["QA"] = PriceCycle.Monthly, ["OM"] = PriceCycle.Monthly, ["BH"] = PriceCycle.Monthly,
+        ["SA"] = PriceCycle.Monthly, ["JO"] = PriceCycle.Monthly, ["KW"] = PriceCycle.Quarterly, ["EG"] = PriceCycle.Quarterly
+    };
+
+    public static PriceCycle? GetPriceCycle(string countryCode) =>
+        PriceCycles.TryGetValue(countryCode.Trim(), out var cycle) ? cycle : null;
+
     public static string? GetLocalCurrency(string? countryCode) =>
         countryCode is not null && Countries.Value.TryGetValue(countryCode.Trim(), out var info) ? info.Currency : null;
 
@@ -87,4 +97,10 @@ public static class CountryCatalog
     }
 
     private sealed record CountryInfo(string Name, string? Currency);
+}
+
+public enum PriceCycle
+{
+    Monthly,
+    Quarterly
 }

@@ -69,6 +69,14 @@ public sealed class TripFuelCostCalculator
                 warnings.Add($"{segment.CountryCode} price is from {effective:MMM yyyy} and may be out of date; enter a manual price if you know a newer one.");
             }
 
+            if (quote is { IsUserProvided: false, EffectiveDate: { } priceDate }
+                && input.TravelDate is { } travel
+                && CountryCatalog.GetPriceCycle(segment.CountryCode) is { } cycle
+                && Period(travel, cycle) > Period(priceDate, cycle))
+            {
+                warnings.Add($"{segment.CountryCode} sets fuel prices {cycle.ToString().ToLowerInvariant()}; the price used is for {priceDate:MMM yyyy} and may change before your trip in {travel:MMM yyyy}.");
+            }
+
             if (quote is null)
             {
                 warnings.Add($"Missing fuel price for {segment.CountryCode} {FuelTypeCatalog.GetDisplayName(input.FuelType)}; it is left out of the total.");
@@ -235,6 +243,9 @@ public sealed class TripFuelCostCalculator
             estimatedStops > 0,
             estimatedStops);
     }
+
+    private static int Period(DateOnly date, PriceCycle cycle) =>
+        cycle == PriceCycle.Quarterly ? date.Year * 4 + (date.Month - 1) / 3 : date.Year * 12 + date.Month - 1;
 
     private static string NormalizeCountry(string countryCode) =>
         string.IsNullOrWhiteSpace(countryCode) ? "UNKNOWN" : countryCode.Trim().ToUpperInvariant();

@@ -14,6 +14,11 @@
     <EmbeddedResource Include="Fuel\Data\seed-prices.json" LogicalName="FuelCalculator.Core.seed-prices.json" />
   </ItemGroup>
 
+  <!-- Hand-curated; sources inside the file. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Borders\Data\border-crossings.json" LogicalName="FuelCalculator.Core.border-crossings.json" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="FuelCalculator.Tests" />
   </ItemGroup>

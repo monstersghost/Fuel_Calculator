@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { Calculator, Circle, CircleDollarSign, Fuel, GripVertical, MapPin, MapPinned, Plus, Route, Search, Trash2 } from 'lucide-react';
+import { Calculator, Circle, CircleDollarSign, Flag, Fuel, GripVertical, MapPin, MapPinned, Plus, Route, Search, Trash2 } from 'lucide-react';
 import './styles.css';
 
 const fuelTypes = [
@@ -51,14 +51,27 @@ const initialForm = {
   tankSizeLiters: '70',
   currentFuelPercentage: '100',
   reservePercentage: '15',
+  departureTime: '',
+  passengers: '1',
 };
 
 const initialStops = [
-  { label: 'Home', coordinates: '' },
-  { label: 'Hafar Al Batin Saudi Arabia', coordinates: '' },
-  { label: 'Al Hadithah Saudi Arabia', coordinates: '' },
-  { label: 'Al Nabk, Syria', coordinates: '' },
+  { label: 'Kuwait City, Kuwait', coordinates: '' },
+  { label: 'Dubai, United Arab Emirates', coordinates: '' },
 ];
+
+function useServiceInfo() {
+  const [info, setInfo] = React.useState(null);
+
+  React.useEffect(() => {
+    fetch('/api/health')
+      .then((response) => (response.ok ? response.json() : null))
+      .then(setInfo)
+      .catch(() => {});
+  }, []);
+
+  return info;
+}
 
 function App() {
   const [form, setForm] = React.useState(initialForm);
@@ -70,6 +83,8 @@ function App() {
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const { currencies, asOf: ratesAsOf } = useCurrencies();
+  const service = useServiceInfo();
+  const osmRoutes = service?.routeProvider?.toLowerCase() === 'osrm';
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -135,6 +150,8 @@ function App() {
       tankSizeLiters: form.tankSizeLiters ? Number(form.tankSizeLiters) : null,
       currentFuelPercentage: form.currentFuelPercentage ? Number(form.currentFuelPercentage) : null,
       reservePercentage: form.reservePercentage === '' ? null : Number(form.reservePercentage),
+      departureTime: form.departureTime ? `${form.departureTime}:00` : null,
+      passengers: form.passengers ? Number(form.passengers) : null,
       manualFuelPrices: manualPrices
         .filter((price) => price.countryCode && price.pricePerLiter)
         .map((price) => ({
@@ -176,7 +193,13 @@ function App() {
           <p className="eyebrow">Cross-border fuel planning</p>
           <h1>Fuel Cost Estimator</h1>
         </div>
-        <div className="status-pill">Mock route mode</div>
+        <div className="status-pill">
+          {service
+            ? `${{ osrm: 'OpenStreetMap routes', google: 'Google routes', mock: 'Mock routes' }[service.routeProvider?.toLowerCase()] ?? service.routeProvider} · ${
+                service.fuelStations === 'OpenStreetMap' ? 'real stations' : 'stand-in stations'
+              }`
+            : 'Connecting…'}
+        </div>
       </header>
 
       <section className="workspace">
@@ -283,6 +306,24 @@ function App() {
             />
           </div>
 
+          <div className="field-grid">
+            <TextField
+              label="Departure (local time)"
+              type="datetime-local"
+              value={form.departureTime}
+              onChange={(value) => updateField('departureTime', value)}
+            />
+            <TextField
+              label="People in the car"
+              type="number"
+              min="1"
+              max="50"
+              step="1"
+              value={form.passengers}
+              onChange={(value) => updateField('passengers', value)}
+            />
+          </div>
+
           <div className="manual-header">
             <SectionTitle icon={<CircleDollarSign size={18} />} title="Manual prices" />
             <button className="icon-button" type="button" onClick={addManualPrice} aria-label="Add manual price">
@@ -344,6 +385,15 @@ function App() {
               Rates By Exchange Rate API
             </a>
             {ratesAsOf ? ` · ${ratesAsOf}` : ''}
+            {osmRoutes ? (
+              <>
+                {' · Routes and places © '}
+                <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+                  OpenStreetMap contributors
+                </a>
+                {' via OSRM and Nominatim'}
+              </>
+            ) : null}
           </p>
         </form>
 
@@ -426,7 +476,16 @@ function Results({ result }) {
     <div className="results">
       <div className="metric-grid">
         <Metric label="Distance" value={`${formatNumber(result.totalDistanceKm)} km`} />
-        <Metric label="Driving time" value={formatDuration(result.durationMinutes)} />
+        <Metric
+          label={result.timing?.arrival ? 'Arrive' : 'Trip time'}
+          value={result.timing?.arrival ? formatDateTime(result.timing.arrival) : formatDuration(result.timing?.totalMinutes ?? result.durationMinutes)}
+          note={
+            result.timing
+              ? `${formatDuration(result.timing.drivingMinutes)} driving · ${formatDuration(result.timing.borderMinutes)} at borders · ${formatDuration(result.timing.fuelStopMinutes)} fuel stops`
+              : null
+          }
+          neutral
+        />
         <Metric label="Fuel needed" value={`${formatNumber(result.totalFuelLiters)} L`} />
         {plan ? (
           <Metric
@@ -445,6 +504,10 @@ function Results({ result }) {
       </div>
 
       {plan ? <RefuelPlanView plan={plan} currency={result.outputCurrency} /> : null}
+
+      {result.borderCrossings?.length ? (
+        <BorderView crossings={result.borderCrossings} total={result.borderCostTotal} currency={result.outputCurrency} />
+      ) : null}
 
       {result.fuelStops ? (
         <div className="fuel-stop-strip">
@@ -509,14 +572,99 @@ function Results({ result }) {
   );
 }
 
-function Metric({ label, value, note, positive = false }) {
+function Metric({ label, value, note, positive = false, neutral = false }) {
+  const noteClass = positive ? 'metric-note positive' : neutral ? 'metric-note neutral' : 'metric-note';
+
   return (
     <div className="metric-card">
       <span>{label}</span>
       <strong>{value}</strong>
-      {note ? <small className={positive ? 'metric-note positive' : 'metric-note'}>{note}</small> : null}
+      {note ? <small className={noteClass}>{note}</small> : null}
     </div>
   );
+}
+
+const bandLabels = { normal: 'Normal', peak: 'Weekend peak', holiday: 'Holiday peak', open: 'Open border' };
+
+function BorderView({ crossings, total, currency }) {
+  return (
+    <section className="border-plan" aria-label="Border crossings">
+      <div className="refuel-head">
+        <h2>
+          <Flag size={18} /> Border crossings
+        </h2>
+        <span>
+          {crossings.length} crossing{crossings.length === 1 ? '' : 's'} ·{' '}
+          {formatDuration(crossings.reduce((sum, crossing) => sum + crossing.delayMinutes, 0))} expected waiting
+          {total != null ? ` · ${formatMoney(total)} ${currency} in fees` : ''}
+        </span>
+      </div>
+
+      <ol className="border-list">
+        {crossings.map((crossing) => (
+          <li key={`${crossing.distanceKm}-${crossing.toCountry}`} className={crossing.isOpenBorder ? 'open' : ''}>
+            <div className="border-top">
+              <div>
+                <strong>{crossing.name}</strong>
+                <span className="border-sub">
+                  km {formatNumber(crossing.distanceKm)} · {crossing.fromCountry} → {crossing.toCountry}
+                  {crossing.arrivalAtBorder ? ` · reach it ${formatDateTime(crossing.arrivalAtBorder)}` : ''}
+                  {crossing.hours && !crossing.isOpenBorder ? ` · ${crossing.hours}` : ''}
+                </span>
+              </div>
+              <div className="border-wait">
+                <strong>{crossing.isOpenBorder ? 'No stop' : `~${formatDuration(crossing.delayMinutes)}`}</strong>
+                <span className={`band-chip ${crossing.band}`}>{bandLabels[crossing.band] ?? crossing.band}</span>
+              </div>
+            </div>
+
+            {crossing.costs.length ? (
+              <ul className="border-costs">
+                {crossing.costs.map((cost) => (
+                  <li key={cost.label}>
+                    <span>{cost.label}</span>
+                    <span>
+                      {formatMoney(cost.amount)} {cost.currency}
+                      {cost.convertedAmount != null && cost.currency !== currency ? ` ≈ ${formatMoney(cost.convertedAmount)} ${currency}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {crossing.requirements.length ? (
+              <ul className="border-notes requirements">
+                {crossing.requirements.map((requirement) => (
+                  <li key={requirement}>{requirement}</li>
+                ))}
+              </ul>
+            ) : null}
+
+            {crossing.notes.length ? (
+              <ul className="border-notes">
+                {crossing.notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+
+      <p className="refuel-sum">
+        Waits are rough estimates from news reports, not live data. Check current crossing times before you leave.
+      </p>
+    </section>
+  );
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  return date.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 function RefuelPlanView({ plan, currency }) {
@@ -542,6 +690,8 @@ function RefuelPlanView({ plan, currency }) {
                 <strong>km {formatNumber(stop.distanceKm)}</strong>
                 <span className="country-chip">{stop.countryCode}</span>
                 {stop.name ? <span className="station-name">{stop.name}</span> : null}
+                {stop.open24Hours === true ? <span className="hours-chip">24/7</span> : null}
+                {stop.open24Hours === false ? <span className="hours-chip limited">Limited hours</span> : null}
               </div>
               <div className="refuel-what">
                 <strong>

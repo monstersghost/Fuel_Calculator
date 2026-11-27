@@ -7,7 +7,8 @@ public sealed record RefuelCandidate(
     double DistanceKm,
     string CountryCode,
     string? Name = null,
-    double? MaxLiters = null);
+    double? MaxLiters = null,
+    bool? Open24Hours = null);
 
 /// <summary>The pump price in a country, locally and in the trip's output currency.</summary>
 /// <param name="PricePerLiterInOutput">Used to compare countries; null when there is no price or no FX rate.</param>
@@ -38,7 +39,8 @@ public sealed record PlannedStop(
     decimal? ConvertedCost,
     double FuelBeforePercentage,
     double FuelAfterPercentage,
-    string Reason);
+    string Reason,
+    bool? Open24Hours = null);
 
 /// <summary>
 /// Where to buy fuel and what the trip's fuel really costs. <see cref="TripFuelCost"/> is what was bought

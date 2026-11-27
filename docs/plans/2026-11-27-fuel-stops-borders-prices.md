@@ -6,7 +6,17 @@ Status: proposal. On branch `fix/correctness-pass` (2026-11-27):
 - C1 is done: the refuel planner, using virtual stations.
 - A refreshed, sourced seed table is done.
 
-Open: real station data (OSM), border crossings, and the dated price table with staleness checks.
+Done later the same day:
+- OpenStreetMap stations, with a tile cache, fuel tags and background fetching.
+- OSRM routing.
+- Border crossings, with timing.
+- Live EU prices and price-period warnings.
+
+Open:
+- Tests in a proper framework, plus CI.
+- Self-hosting Overpass and OSRM.
+- Live border waits.
+- Time zones.
 
 ## 1. What the app is today
 

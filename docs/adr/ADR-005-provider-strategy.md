@@ -17,12 +17,13 @@ Use provider interfaces for all external or replaceable data:
 
 | Concern | Interface | MVP implementation | Future implementation |
 |---------|-----------|--------------------|-----------------------|
-| Route calculation | `IRouteProvider` | `MockRouteProvider` | `GoogleRoutesProvider` with Google Routes API |
+| Route calculation | `IRouteProvider` | `OsrmRouteProvider` + `NominatimGeocoder` (default); `GoogleRoutesProvider`; `MockRouteProvider` for tests | Self-hosted OSRM |
 | Country segmentation | `IRouteCountrySegmenter` | `PolylineCountrySegmenter` using sampled decoded polyline points | PostGIS route/polygon intersection |
 | Country lookup | `ICountryResolver` | `PolygonCountryResolver` (Natural Earth 1:50m borders, embedded) | PostGIS or geocoding-backed resolver |
-| Fuel prices | `IFuelPriceProvider` | `ManualFuelPriceProvider`, `StaticSeedFuelPriceProvider` (151 countries: curated > EU Oil Bulletin > World Bank, built by `tools/data`) | Saudi Aramco, ADNOC, Qatar, GlobalPetrolPrices, official feeds |
+| Fuel prices | `IFuelPriceProvider` | `ManualFuelPriceProvider`, `StaticSeedFuelPriceProvider` (151 countries: curated > EU Oil Bulletin > World Bank, built by `tools/data`), `EuOilBulletinPriceProvider` (live, refreshed every 12 h) | Saudi Aramco, ADNOC, Qatar, GlobalPetrolPrices, official feeds |
 | FX conversion | `ICurrencyConverter` | `StaticCurrencyConverter` (Exchange Rate API snapshot, 166 currencies) | Live FX provider |
 | Fuel stations | `IFuelStationProvider` | `OverpassFuelStationProvider` (OpenStreetMap), stand-in stations as fallback | Self-hosted Overpass or regional extracts |
+| Border crossings | `BorderPlanner` + `BorderCatalog` | Curated `border-crossings.json` | Live wait times where published |
 | Vehicle data | `IVehicleDataProvider` | `NullVehicleDataProvider` | FuelEconomy.gov or regional equivalent |
 
 ### Manual Override Rule

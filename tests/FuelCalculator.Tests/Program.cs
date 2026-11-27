@@ -1,3 +1,4 @@
+using FuelCalculator.Core.Borders;
 using FuelCalculator.Core.Calculation;
 using FuelCalculator.Core.Currency;
 using FuelCalculator.Core.Domain;
@@ -52,12 +53,35 @@ var tests = new List<(string Name, Func<Task> Test)>
     ("Old prices carry a staleness warning", TestStalePriceWarning),
     ("Route projection gives distance along and off the route", TestRouteProjection),
     ("Stations near the route are snapped to their km; far ones are dropped", TestStationSnapping),
-    ("Overpass query asks for fuel stations in boxes along the route", TestOverpassQuery),
+    ("Overpass query asks for the map tiles along the route", TestOverpassQuery),
     ("Overpass response is parsed into stations, ways by their centre", TestOverpassParse),
     ("Estimate plans stops only at the stations it is given", TestEstimateUsesGivenStations),
     ("Real stations in Oman near a border get the 30 litre cap", TestRealStationsOmanCap),
     ("Planner top-up to the destination is not short by rounding", TestPlannerTopUpNotShortByRounding),
-    ("Overpass falls back to the next server when one is busy", TestOverpassFallback)
+    ("Overpass falls back to the next server when one is busy", TestOverpassFallback),
+    ("Route stops with GPS coordinates need no lookup", TestRouteStopCoordinates),
+    ("Nominatim answer is read as a point and a name", TestNominatimParse),
+    ("OSRM route is built from looked-up stops", TestOsrmRoute),
+    ("An unknown place gives a clear error", TestOsrmUnknownPlace),
+    ("OSRM with no road route gives a clear error", TestOsrmNoRoute),
+    ("Station tiles are cached; a repeat route makes no request", TestStationTileCache),
+    ("Fuel tags and 24/7 hours are read from OpenStreetMap", TestStationFuelTags),
+    ("Stations tagged as not selling the fuel are skipped", TestSnapperSkipsWrongFuel),
+    ("Planner never stops for less than 5 litres", TestPlannerMinimumFill),
+    ("Station lookup reports missing tiles until they are fetched", TestStationLookupMissingTiles),
+    ("Border changes are found where the country changes", TestBorderDetection),
+    ("A sea gap between two countries counts as one crossing", TestBorderDetectionSkipsUnknown),
+    ("Causeway crossing is matched with its toll and Bahrain rules", TestCausewayCrossing),
+    ("Saudi entry adds the Manafith requirement and cost", TestSaudiEntryRules),
+    ("UAE exit fee is charged per passenger", TestUaeExitFee),
+    ("Schengen borders are open with no delay", TestSchengenOpenBorder),
+    ("An unknown border gets the default delay", TestUnknownBorderDefault),
+    ("Thursday evening is a GCC peak, Tuesday is not, Eid is a holiday", TestBorderPeakBands),
+    ("Trip timing adds border waits and fuel stops to the arrival time", TestTripTiming),
+    ("Bulletin page link to the latest prices-with-taxes file is found", TestEuBulletinLink),
+    ("Bulletin workbook is read into per-litre prices by country", TestEuBulletinParse),
+    ("Live EU prices replace the seed once refreshed", TestEuBulletinProvider),
+    ("A trip in a later price period warns that the price may change", TestPriceCycleWarning)
 };
 
 var failures = new List<string>();
@@ -692,12 +716,13 @@ static async Task TestStationSnapping()
 
 static Task TestOverpassQuery()
 {
-    // 222 km of route in pieces of at most 50 km: five boxes, each widened by the 2 km corridor.
-    var query = OverpassFuelStationProvider.BuildQuery(EquatorRoute(), corridorKm: 2d);
-    var boxes = query.Split("nwr[amenity=fuel](").Length - 1;
+    // Equator route from lon 0 to 2 with a 2 km corridor: tiles x -1..20 (the corridor reaches past both ends)
+    // and y -1..0 (it reaches just south of the equator): 22 x 2 = 44 tiles.
+    var tiles = StationTile.ForRoute(EquatorRoute(), corridorKm: 2d);
+    var query = OverpassFuelStationProvider.BuildQuery(tiles);
 
-    AssertEqual(5, boxes);
-    AssertTrue(query.Contains("nwr[amenity=fuel](-0.01809,-0.01797,0.01809,", StringComparison.Ordinal), query);
+    AssertEqual(44, tiles.Count);
+    AssertTrue(query.Contains("nwr[amenity=fuel](-0.1,0,0,0.1);", StringComparison.Ordinal), query);
     AssertTrue(query.EndsWith(");out center tags;", StringComparison.Ordinal), query);
     return Task.CompletedTask;
 }
@@ -765,13 +790,386 @@ static async Task TestOverpassFallback()
     var handler = new OverpassStubHandler();
     var provider = new OverpassFuelStationProvider(new HttpClient(handler), new OverpassOptions
     {
-        Endpoints = ["https://busy.example/api/interpreter", "https://ok.example/api/interpreter"]
+        Endpoints = ["https://busy.example/api/interpreter", "https://ok.example/api/interpreter"],
+        TilesPerRequest = 100
     });
 
     var stations = await provider.GetStationsAsync(EquatorRoute(), 2d);
 
     AssertEqual(1, stations.Count);
     AssertEqual("busy.example,ok.example", string.Join(",", handler.Hosts));
+}
+
+static Task TestRouteStopCoordinates()
+{
+    AssertTrue(RouteStopParser.TryParseCoordinates("Home | 29.3759,47.9774", out var home), "Label plus GPS should parse.");
+    AssertClose(29.3759d, home.Latitude);
+    AssertClose(47.9774d, home.Longitude);
+    AssertTrue(RouteStopParser.TryParseCoordinates(" 52.52, 13.405 ", out var berlin), "Bare GPS should parse.");
+    AssertClose(13.405d, berlin.Longitude);
+    AssertTrue(!RouteStopParser.TryParseCoordinates("Berlin", out _), "A name is not a coordinate.");
+    AssertTrue(!RouteStopParser.TryParseCoordinates("95, 200", out _), "Out-of-range numbers are not a coordinate.");
+    return Task.CompletedTask;
+}
+
+static Task TestNominatimParse()
+{
+    var place = NominatimGeocoder.Parse("""[{"lat":"52.5170365","lon":"13.3888599","display_name":"Berlin, Germany"}]""");
+
+    AssertClose(52.5170365d, place!.Point.Latitude);
+    AssertEqual("Berlin, Germany", place.Name);
+    AssertEqual<GeocodedPlace?>(null, NominatimGeocoder.Parse("[]"));
+    return Task.CompletedTask;
+}
+
+static RoutingStubHandler RoutingStub(string osrmBody) => new(
+    new Dictionary<string, string>
+    {
+        ["Berlin"] = """[{"lat":"52.52","lon":"13.405","display_name":"Berlin, Germany"}]""",
+        ["Paris"] = """[{"lat":"48.8566","lon":"2.3522","display_name":"Paris, France"}]""",
+        ["Atlantis"] = "[]"
+    },
+    osrmBody);
+
+static string OsrmOk() => $$"""
+    {"code":"Ok","routes":[{"distance":1054300.5,"duration":36000,
+      "geometry":"{{PolylineCodec.Encode([new GeoPoint(52.52, 13.405), new GeoPoint(50.5, 8.0), new GeoPoint(48.8566, 2.3522)]).Replace("\\", "\\\\")}}",
+      "legs":[{"distance":480000,"duration":16000},{"distance":574300.5,"duration":20000}]}]}
+    """;
+
+static OsrmRouteProvider Osrm(RoutingStubHandler handler)
+{
+    var http = new HttpClient(handler);
+    return new OsrmRouteProvider(http, new NominatimGeocoder(http, new NominatimOptions { MinInterval = TimeSpan.Zero }));
+}
+
+static async Task TestOsrmRoute()
+{
+    var handler = RoutingStub(OsrmOk());
+    var route = await Osrm(handler).GetRouteAsync(new RouteRequest("Berlin", "Paris", ["50.5,8.0"]));
+
+    AssertClose(1054.3d, route.TotalDistanceKm, 0.01d);
+    AssertEqual(TimeSpan.FromHours(10), route.Duration);
+    AssertEqual(3, route.Points.Count);
+    AssertEqual("Berlin, Germany", route.Legs[0].StartLabel);
+    AssertEqual("50.5,8", route.Legs[0].EndLabel);
+    AssertEqual("Paris, France", route.Legs[1].EndLabel);
+    var osrmCall = handler.Requests.Single(uri => uri.Host == "router.project-osrm.org");
+    AssertTrue(osrmCall.AbsolutePath.EndsWith("/route/v1/driving/13.405,52.52;8,50.5;2.3522,48.8566", StringComparison.Ordinal), osrmCall.AbsolutePath);
+    AssertTrue(osrmCall.Query.Contains("overview=full", StringComparison.Ordinal) && osrmCall.Query.Contains("geometries=polyline", StringComparison.Ordinal), osrmCall.Query);
+    AssertTrue(handler.UserAgents.All(agent => agent.Contains("FuelCalculator", StringComparison.Ordinal)), "Every call must identify the app.");
+}
+
+static async Task TestOsrmUnknownPlace()
+{
+    try
+    {
+        await Osrm(RoutingStub(OsrmOk())).GetRouteAsync(new RouteRequest("Berlin", "Atlantis", []));
+        throw new InvalidOperationException("Expected a RouteNotFoundException.");
+    }
+    catch (RouteNotFoundException ex)
+    {
+        AssertTrue(ex.Message.Contains("Atlantis", StringComparison.Ordinal), ex.Message);
+    }
+}
+
+static async Task TestOsrmNoRoute()
+{
+    try
+    {
+        await Osrm(RoutingStub("""{"code":"NoRoute","message":"Impossible route between points"}""")).GetRouteAsync(new RouteRequest("Berlin", "Paris", []));
+        throw new InvalidOperationException("Expected a RouteNotFoundException.");
+    }
+    catch (RouteNotFoundException ex)
+    {
+        AssertTrue(ex.Message.Contains("No road route", StringComparison.Ordinal), ex.Message);
+    }
+}
+
+static async Task TestStationTileCache()
+{
+    var folder = Path.Combine(Path.GetTempPath(), "fuelcalc-tiles-" + Guid.NewGuid().ToString("N"));
+    var handler = new OverpassStubHandler();
+
+    try
+    {
+        var options = new OverpassOptions { Endpoints = ["https://ok.example/api/interpreter"], CacheFolder = folder, TilesPerRequest = 100 };
+        var first = await new OverpassFuelStationProvider(new HttpClient(handler), options).GetStationsAsync(EquatorRoute(), 2d);
+        var second = await new OverpassFuelStationProvider(new HttpClient(handler), options).GetStationsAsync(EquatorRoute(), 2d);
+
+        AssertEqual(1, first.Count);
+        AssertEqual(1, second.Count);
+        AssertEqual(1, handler.Hosts.Count);
+    }
+    finally
+    {
+        if (Directory.Exists(folder))
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+}
+
+static Task TestStationFuelTags()
+{
+    const string json = """
+        {"elements":[
+          {"type":"node","id":1,"lat":1,"lon":1,"tags":{"name":"A","fuel:diesel":"no","fuel:octane_95":"yes","opening_hours":"24/7"}},
+          {"type":"node","id":2,"lat":1,"lon":1,"tags":{"name":"B","fuel:octane_92":"yes","opening_hours":"Mo-Fr 06:00-22:00"}},
+          {"type":"node","id":3,"lat":1,"lon":1,"tags":{"name":"C"}}
+        ]}
+        """;
+    var stations = OverpassFuelStationProvider.Parse(json);
+
+    AssertEqual<bool?>(false, stations[0].Sells(FuelType.DIESEL));
+    AssertEqual<bool?>(true, stations[0].Sells(FuelType.GASOLINE_95));
+    AssertEqual<bool?>(true, stations[0].Open24Hours);
+    AssertEqual<bool?>(true, stations[1].Sells(FuelType.GASOLINE_91));
+    AssertEqual<bool?>(false, stations[1].Open24Hours);
+    AssertEqual<bool?>(null, stations[2].Sells(FuelType.DIESEL));
+    AssertEqual<bool?>(null, stations[2].Open24Hours);
+    return Task.CompletedTask;
+}
+
+static async Task TestSnapperSkipsWrongFuel()
+{
+    var stations = new[]
+    {
+        new FuelStation(1, 0.01d, 0.3d, "Petrol only", null) { Fuels = new Dictionary<string, bool> { ["diesel"] = false } },
+        new FuelStation(2, 0.01d, 0.6d, "Unknown", null)
+    };
+    var candidates = await FuelStationSnapper.SnapAsync(
+        new RouteProjection(EquatorRoute()), stations, 2d, new FixedCountryResolver("XX"), FuelType.DIESEL);
+
+    AssertEqual("Unknown", candidates.Single().Name);
+}
+
+static Task TestPlannerMinimumFill()
+{
+    // Needs only 0.1 L at km 0 to reach the destination with the reserve; it should buy at least 5 L.
+    var plan = RefuelPlanner.Plan(PlannerInput(201d, 50d, Stations((0, "SA")), ("SA", 0.25m)));
+
+    AssertEqual(1, plan.Stops.Count);
+    AssertClose(5d, plan.Stops[0].Liters, 1e-9);
+    return Task.CompletedTask;
+}
+
+static async Task TestStationLookupMissingTiles()
+{
+    var handler = new OverpassStubHandler();
+    var provider = new OverpassFuelStationProvider(new HttpClient(handler), new OverpassOptions { Endpoints = ["https://ok.example/api/interpreter"] });
+
+    var before = provider.Lookup(EquatorRoute(), 2d);
+    AssertEqual(44, before.TotalTiles);
+    AssertEqual(44, before.Missing.Count);
+    AssertEqual(0, before.Stations.Count);
+
+    await provider.FetchAsync(before.Missing);
+    var after = provider.Lookup(EquatorRoute(), 2d);
+
+    AssertEqual(0, after.Missing.Count);
+    AssertEqual(1, after.Stations.Count);
+    AssertEqual(2, handler.Hosts.Count); // 44 tiles in batches of 25
+}
+
+static Task TestBorderDetection()
+{
+    var transitions = BorderDetector.Detect(
+        [new CountryRouteSegment("XX", 100d), new CountryRouteSegment("YY", 122.39d)],
+        new RouteProjection(EquatorRoute()));
+
+    var only = transitions.Single();
+    AssertEqual("XX", only.FromCountry);
+    AssertEqual("YY", only.ToCountry);
+    AssertClose(100d, only.DistanceKm);
+    AssertClose(0.8993d, only.Point.Longitude, 0.001d);
+    return Task.CompletedTask;
+}
+
+static Task TestBorderDetectionSkipsUnknown()
+{
+    var transitions = BorderDetector.Detect(
+        [new CountryRouteSegment("SA", 100d), new CountryRouteSegment("UNKNOWN", 20d), new CountryRouteSegment("BH", 102.39d)],
+        new RouteProjection(EquatorRoute()));
+
+    var only = transitions.Single();
+    AssertEqual("SA", only.FromCountry);
+    AssertEqual("BH", only.ToCountry);
+    AssertClose(110d, only.DistanceKm);
+    return Task.CompletedTask;
+}
+
+static BorderPlanner Borders() => new(BorderCatalog.LoadEmbedded(), new StaticCurrencyConverter());
+
+static DateTime Tuesday10am() => new(2026, 12, 8, 10, 0, 0);
+
+static async Task TestCausewayCrossing()
+{
+    var crossing = (await Borders().PlanAsync(
+        [new BorderTransition(600d, "SA", "BH", new GeoPoint(26.19, 50.35))], "BHD", 1, Tuesday10am(), 600d / 80d * 60d, 600d)).Single();
+
+    AssertEqual("King Fahd Causeway", crossing.Name);
+    AssertTrue(crossing.IsKnownCrossing, "Causeway should be a known crossing.");
+    AssertEqual(40, crossing.DelayMinutes);
+    var toll = crossing.Costs.Single(cost => cost.Label.Contains("toll", StringComparison.OrdinalIgnoreCase));
+    AssertEqual(35m, toll.Amount);
+    AssertEqual("SAR", toll.Currency);
+    // 35 SAR at the snapshot rates; SAR and BHD are both pegged to the dollar, not exactly 10:1.
+    AssertEqual(3.51m, Math.Round(toll.ConvertedAmount!.Value, 2));
+}
+
+static async Task TestSaudiEntryRules()
+{
+    var crossing = (await Borders().PlanAsync(
+        [new BorderTransition(85d, "KW", "SA", new GeoPoint(28.54, 48.43))], "KWD", 1, Tuesday10am(), 60d, 85d)).Single();
+
+    AssertEqual("Nuwaiseeb – Al Khafji", crossing.Name);
+    AssertTrue(crossing.Requirements.Any(r => r.Contains("Manafith", StringComparison.Ordinal)), "Expected the Manafith requirement.");
+    AssertTrue(crossing.Costs.Any(c => c.Label.Contains("Manafith", StringComparison.Ordinal) && c.Amount == 120m), "Expected the Manafith cost.");
+}
+
+static async Task TestUaeExitFee()
+{
+    var crossing = (await Borders().PlanAsync(
+        [new BorderTransition(130d, "AE", "OM", new GeoPoint(24.26, 55.77))], "AED", 3, Tuesday10am(), 90d, 130d)).Single();
+
+    AssertEqual("Hili (Al Ain – Buraimi)", crossing.Name);
+    var fee = crossing.Costs.Single(c => c.Label.Contains("exit fee", StringComparison.Ordinal));
+    AssertEqual(105m, fee.Amount);
+}
+
+static async Task TestSchengenOpenBorder()
+{
+    var crossing = (await Borders().PlanAsync(
+        [new BorderTransition(640d, "DE", "BE", new GeoPoint(50.75, 6.02))], "EUR", 1, Tuesday10am(), 400d, 640d)).Single();
+
+    AssertTrue(crossing.IsOpenBorder, "Germany to Belgium is an open Schengen border.");
+    AssertEqual(0, crossing.DelayMinutes);
+}
+
+static async Task TestUnknownBorderDefault()
+{
+    var crossing = (await Borders().PlanAsync(
+        [new BorderTransition(300d, "US", "MX", new GeoPoint(32.54, -117.03))], "USD", 1, Tuesday10am(), 200d, 300d)).Single();
+
+    AssertTrue(!crossing.IsKnownCrossing && !crossing.IsOpenBorder, "No data for this border.");
+    AssertEqual(30, crossing.DelayMinutes);
+    AssertEqual(ConfidenceLevel.LOW, crossing.Confidence);
+}
+
+static async Task TestBorderPeakBands()
+{
+    var transition = new BorderTransition(300d, "SA", "AE", new GeoPoint(24.13, 51.62));
+    // Thursday 3 Dec 2026, 13:00 departure, 3 h of driving to the border: arrives 16:00 Thursday. That is also
+    // in the UAE National Day window, so check a plain Thursday too: 10 Dec 2026.
+    var thursday = (await Borders().PlanAsync([transition], "SAR", 1, new DateTime(2026, 12, 10, 13, 0, 0), 600d, 1000d)).Single();
+    var tuesday = (await Borders().PlanAsync([transition], "SAR", 1, Tuesday10am(), 600d, 1000d)).Single();
+    var eid = (await Borders().PlanAsync([transition], "SAR", 1, new DateTime(2027, 3, 9, 8, 0, 0), 600d, 1000d)).Single();
+
+    AssertEqual("peak", thursday.Band);
+    AssertEqual(180, thursday.DelayMinutes);
+    AssertEqual("normal", tuesday.Band);
+    AssertEqual("holiday", eid.Band);
+    AssertEqual(300, eid.DelayMinutes);
+    AssertEqual(new DateTime(2026, 12, 10, 16, 0, 0), thursday.ArrivalAtBorder);
+}
+
+static Task TestTripTiming()
+{
+    var timing = TripTiming.Create(new DateTime(2026, 12, 8, 6, 0, 0), drivingMinutes: 600d, borderMinutes: 100, fuelStops: 2);
+
+    AssertEqual(20, timing.FuelStopMinutes);
+    AssertEqual(720d, timing.TotalMinutes);
+    AssertEqual(new DateTime(2026, 12, 8, 18, 0, 0), timing.Arrival);
+    return Task.CompletedTask;
+}
+
+const string BulletinPage = """
+    <a href="/document/download/aaa_en?filename=Weekly%20Oil%20Bulletin%20Weekly%20prices%20without%20Taxes%20-%202024-02-19.xlsx">Prices without taxes latest prices (xlsx)</a>
+    <a href="/document/download/264c2d0f-f161-4ea3-a777-78faae59bea0_en?filename=Weekly%20Oil%20Bulletin%20Weekly%20prices%20with%20Taxes%20-%202026-09-21.xlsx">Prices with taxes latest prices (xlsx)</a>
+    """;
+
+static Task TestEuBulletinLink()
+{
+    var link = EuOilBulletinPriceProvider.FindLatestWithTaxesLink(BulletinPage, new Uri("https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en"));
+
+    AssertEqual("https://energy.ec.europa.eu/document/download/264c2d0f-f161-4ea3-a777-78faae59bea0_en?filename=Weekly%20Oil%20Bulletin%20Weekly%20prices%20with%20Taxes%20-%202026-09-21.xlsx", link?.ToString());
+    return Task.CompletedTask;
+}
+
+// A minimal workbook shaped like the bulletin: A1 label, A2 the data date as an Excel serial, then a row per country.
+static byte[] BulletinWorkbook()
+{
+    using var memory = new MemoryStream();
+
+    using (var zip = new System.IO.Compression.ZipArchive(memory, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+    {
+        void Add(string name, string xml)
+        {
+            using var writer = new StreamWriter(zip.CreateEntry(name).Open());
+            writer.Write(xml);
+        }
+
+        const string ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        Add("xl/workbook.xml", $"""<workbook xmlns="{ns}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>""");
+        Add("xl/_rels/workbook.xml.rels", """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/></Relationships>""");
+        Add("xl/sharedStrings.xml", $"""<sst xmlns="{ns}"><si><t>in EUR</t></si><si><t>Germany</t></si><si><t>Belgium</t></si><si><t>1000 l</t></si></sst>""");
+        Add("xl/worksheets/sheet1.xml", $"""
+            <worksheet xmlns="{ns}"><sheetData>
+            <row r="1"><c r="A1" t="s"><v>0</v></c></row>
+            <row r="2"><c r="A2"><v>46356</v></c><c r="B2" t="s"><v>3</v></c><c r="C2" t="s"><v>3</v></c></row>
+            <row r="3"><c r="A3" t="s"><v>1</v></c><c r="B3"><v>1950.5</v></c><c r="C3"><v>2110</v></c></row>
+            <row r="4"><c r="A4" t="s"><v>2</v></c><c r="B4"><v>1700</v></c></row>
+            </sheetData></worksheet>
+            """);
+    }
+
+    return memory.ToArray();
+}
+
+static Task TestEuBulletinParse()
+{
+    var bulletin = EuOilBulletinPriceProvider.ParseWorkbook(BulletinWorkbook());
+
+    AssertEqual(new DateOnly(2026, 11, 30), bulletin.DataDate);
+    AssertEqual(1.9505m, bulletin.Prices[("DE", FuelType.GASOLINE_95)]);
+    AssertEqual(2.11m, bulletin.Prices[("DE", FuelType.DIESEL)]);
+    AssertEqual(1.7m, bulletin.Prices[("BE", FuelType.GASOLINE_95)]);
+    AssertTrue(!bulletin.Prices.ContainsKey(("BE", FuelType.DIESEL)), "A blank cell is not a price.");
+    return Task.CompletedTask;
+}
+
+static async Task TestEuBulletinProvider()
+{
+    var provider = new EuOilBulletinPriceProvider(new HttpClient(new BulletinStubHandler(BulletinPage, BulletinWorkbook())), cacheFile: null);
+
+    AssertEqual<FuelPriceQuote?>(null, await provider.GetPriceAsync("DE", FuelType.GASOLINE_95));
+    await provider.RefreshAsync();
+    var quote = await provider.GetPriceAsync("DE", FuelType.GASOLINE_95);
+
+    AssertEqual(1.9505m, quote!.PricePerLiter);
+    AssertEqual("EUR", quote.Currency);
+    AssertEqual(new DateOnly(2026, 11, 30), quote.EffectiveDate);
+    AssertEqual(ConfidenceLevel.HIGH, quote.Confidence);
+    AssertTrue(quote.SourceName.Contains("live", StringComparison.OrdinalIgnoreCase), quote.SourceName);
+}
+
+static async Task TestPriceCycleWarning()
+{
+    async Task<IReadOnlyList<string>> WarningsFor(DateOnly travel)
+    {
+        var result = await new TripFuelCostCalculator().CalculateAsync(
+            new TripFuelCostInput([new CountryRouteSegment("AE", 100d)], FuelType.GASOLINE_95, 10d, "AED", null, null) { TravelDate = travel },
+            new StaticSeedFuelPriceProvider(),
+            new StaticCurrencyConverter());
+        return result.Warnings;
+    }
+
+    var december = await WarningsFor(new DateOnly(2026, 12, 15));
+    var november = await WarningsFor(new DateOnly(2026, 11, 28));
+
+    AssertTrue(december.Any(w => w.Contains("AE sets fuel prices monthly", StringComparison.Ordinal)), string.Join(" | ", december));
+    AssertTrue(!november.Any(w => w.Contains("sets fuel prices", StringComparison.Ordinal)), string.Join(" | ", november));
 }
 
 static async Task<TripEstimateResult> CalculateAsync(
@@ -846,4 +1244,36 @@ sealed class OverpassStubHandler : HttpMessageHandler
                 Content = new StringContent("""{"elements":[{"type":"node","id":1,"lat":0.001,"lon":0.5,"tags":{"name":"Equator Fuel"}}]}""")
             });
     }
+}
+
+sealed class RoutingStubHandler(IReadOnlyDictionary<string, string> places, string osrmBody) : HttpMessageHandler
+{
+    public List<Uri> Requests { get; } = [];
+
+    public List<string> UserAgents { get; } = [];
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        Requests.Add(request.RequestUri!);
+        UserAgents.Add(request.Headers.UserAgent.ToString());
+
+        var body = request.RequestUri!.Host switch
+        {
+            "nominatim.openstreetmap.org" => places[System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["q"]!],
+            _ => osrmBody
+        };
+
+        return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) });
+    }
+}
+
+sealed class BulletinStubHandler(string page, byte[] workbook) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = request.RequestUri!.AbsolutePath.StartsWith("/document/", StringComparison.Ordinal)
+                ? new ByteArrayContent(workbook)
+                : new StringContent(page)
+        });
 }
