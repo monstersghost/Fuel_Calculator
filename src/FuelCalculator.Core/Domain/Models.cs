@@ -88,7 +88,13 @@ public sealed record TripFuelCostInput(
     double NormalizedConsumptionLPer100Km,
     string OutputCurrency,
     double? TankSizeLiters,
-    double? CurrentFuelPercentage);
+    double? CurrentFuelPercentage)
+{
+    public double? DurationMinutes { get; init; }
+
+    /// <summary>Share of the tank kept in hand when planning refuels; never planned below this.</summary>
+    public double ReservePercentage { get; init; } = 15d;
+}
 
 public sealed record TripSegmentCost(
     string CountryCode,
@@ -108,6 +114,8 @@ public sealed record FuelStopEstimate(
     double FullTankRangeKm,
     double StartingFuelPercentage,
     double StartingRangeKm,
+    double ReservePercentage,
+    double UsableRangeKm,
     bool RequiresRefuel,
     int EstimatedMinimumStops);
 
@@ -119,7 +127,10 @@ public sealed record TripEstimateResult(
     decimal TotalCost,
     IReadOnlyList<TripSegmentCost> Segments,
     IReadOnlyList<string> Warnings,
-    FuelStopEstimate? FuelStops);
+    FuelStopEstimate? FuelStops,
+    bool IsTotalComplete,
+    IReadOnlyList<string> CountriesMissingPrice,
+    double? DurationMinutes);
 
 public sealed record ParsedRouteInput(
     string? Origin,

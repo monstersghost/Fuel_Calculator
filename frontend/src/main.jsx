@@ -27,6 +27,7 @@ const initialForm = {
   outputCurrency: 'KWD',
   tankSizeLiters: '70',
   currentFuelPercentage: '100',
+  reservePercentage: '15',
 };
 
 const initialStops = [
@@ -40,7 +41,7 @@ function App() {
   const [form, setForm] = React.useState(initialForm);
   const [stops, setStops] = React.useState(initialStops);
   const [manualPrices, setManualPrices] = React.useState([
-    createManualPrice({ countryCode: 'KW', fuelType: 'GASOLINE_95', pricePerLiter: '', currency: 'KWD' }),
+    createManualPrice({ countryCode: 'KW', fuelType: 'GASOLINE_95', pricePerLiter: '' }),
   ]);
   const [result, setResult] = React.useState(null);
   const [error, setError] = React.useState('');
@@ -59,7 +60,7 @@ function App() {
   function addManualPrice() {
     setManualPrices((current) => [
       ...current,
-      createManualPrice({ countryCode: '', fuelType: form.fuelType, pricePerLiter: '', currency: form.outputCurrency }),
+      createManualPrice({ countryCode: '', fuelType: form.fuelType, pricePerLiter: '' }),
     ]);
   }
 
@@ -109,13 +110,15 @@ function App() {
       outputCurrency: form.outputCurrency,
       tankSizeLiters: form.tankSizeLiters ? Number(form.tankSizeLiters) : null,
       currentFuelPercentage: form.currentFuelPercentage ? Number(form.currentFuelPercentage) : null,
+      reservePercentage: form.reservePercentage === '' ? null : Number(form.reservePercentage),
       manualFuelPrices: manualPrices
         .filter((price) => price.countryCode && price.pricePerLiter)
         .map((price) => ({
           countryCode: price.countryCode,
           fuelType: price.fuelType || form.fuelType,
           pricePerLiter: Number(price.pricePerLiter),
-          currency: price.currency || form.outputCurrency,
+          // Blank means the country's own currency; the API fills it in.
+          currency: price.currency || null,
         })),
     };
 
@@ -134,7 +137,7 @@ function App() {
         return;
       }
 
-      setResult(data);
+      setResult({ ...data, requestedFuelType: payload.fuelType });
     } catch (estimateError) {
       setError(estimateError instanceof Error ? estimateError.message : 'Estimate failed.');
     } finally {
@@ -211,7 +214,7 @@ function App() {
             </label>
           </div>
 
-          <div className="field-grid three">
+          <div className="field-grid">
             <label className="field">
               <span>Output currency</span>
               <select value={form.outputCurrency} onChange={(event) => updateField('outputCurrency', event.target.value)}>
@@ -222,6 +225,9 @@ function App() {
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="field-grid three">
             <TextField
               label="Tank size"
               type="number"
@@ -239,6 +245,16 @@ function App() {
               step="1"
               value={form.currentFuelPercentage}
               onChange={(value) => updateField('currentFuelPercentage', value)}
+              placeholder="%"
+            />
+            <TextField
+              label="Keep in reserve"
+              type="number"
+              min="0"
+              max="99"
+              step="1"
+              value={form.reservePercentage}
+              onChange={(value) => updateField('reservePercentage', value)}
               placeholder="%"
             />
           </div>
@@ -280,6 +296,7 @@ function App() {
                 <label className="field">
                   <span>Currency</span>
                   <select value={price.currency} onChange={(event) => updateManualPrice(index, 'currency', event.target.value)}>
+                    <option value="">Local</option>
                     {currencies.map((currency) => (
                       <option key={currency} value={currency}>
                         {currency}
@@ -370,20 +387,30 @@ function EmptyResults() {
 }
 
 function Results({ result }) {
-  const fuelType = result.segments?.[0]?.fuelType ?? 'GASOLINE_95';
+  const fuelType = result.requestedFuelType ?? result.segments?.[0]?.fuelType ?? 'GASOLINE_95';
+  const missing = result.countriesMissingPrice ?? [];
+  const totalIncomplete = result.isTotalComplete === false;
 
   return (
     <div className="results">
       <div className="metric-grid">
         <Metric label="Distance" value={`${formatNumber(result.totalDistanceKm)} km`} />
+        <Metric label="Driving time" value={formatDuration(result.durationMinutes)} />
         <Metric label="Fuel needed" value={`${formatNumber(result.totalFuelLiters)} L`} />
-        <Metric label="Total cost" value={`${formatMoney(result.totalCost)} ${result.outputCurrency ?? ''}`} />
+        <Metric
+          label={totalIncomplete ? 'Total cost (incomplete)' : 'Total cost'}
+          value={`${formatMoney(result.totalCost)} ${result.outputCurrency ?? ''}`}
+          note={totalIncomplete ? `Excludes ${missing.join(', ')}: no price` : null}
+        />
         <Metric label="Fuel type" value={fuelLabel(fuelType)} />
       </div>
 
       {result.fuelStops ? (
         <div className="fuel-stop-strip">
           <span>{formatNumber(result.fuelStops.fullTankRangeKm)} km full-tank range</span>
+          <span>
+            {formatNumber(result.fuelStops.usableRangeKm)} km per tank keeping {formatNumber(result.fuelStops.reservePercentage)}% in reserve
+          </span>
           <span>{result.fuelStops.estimatedMinimumStops} minimum refuel stop{result.fuelStops.estimatedMinimumStops === 1 ? '' : 's'}</span>
         </div>
       ) : null}
@@ -419,6 +446,7 @@ function Results({ result }) {
                   {segment.pricePerLiter == null
                     ? 'Missing'
                     : `${formatMoney(segment.pricePerLiter)} ${segment.priceCurrency}/L`}
+                  {segment.fuelType !== fuelType ? <span className="grade-note">as {fuelLabel(segment.fuelType)}</span> : null}
                 </td>
                 <td>{segment.localCost == null ? '-' : `${formatMoney(segment.localCost)} ${segment.priceCurrency}`}</td>
                 <td className="converted-cell">
@@ -438,13 +466,25 @@ function Results({ result }) {
   );
 }
 
-function Metric({ label, value }) {
+function Metric({ label, value, note }) {
   return (
     <div className="metric-card">
       <span>{label}</span>
       <strong>{value}</strong>
+      {note ? <small className="metric-note">{note}</small> : null}
     </div>
   );
+}
+
+function formatDuration(minutes) {
+  if (minutes == null || Number.isNaN(Number(minutes))) {
+    return '-';
+  }
+
+  const total = Math.round(Number(minutes));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  return hours > 0 ? `${hours} h ${rest} min` : `${rest} min`;
 }
 
 function fuelLabel(value) {
@@ -477,7 +517,7 @@ function createManualPrice(overrides = {}) {
     countryCode: '',
     fuelType: 'GASOLINE_95',
     pricePerLiter: '',
-    currency: 'KWD',
+    currency: '',
     ...overrides,
   };
 }

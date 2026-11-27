@@ -26,13 +26,26 @@ public sealed class TripFuelCostCalculator
         foreach (var segment in segments)
         {
             var fuelLiters = segment.DistanceKm * input.NormalizedConsumptionLPer100Km / 100d;
-            var quote = await fuelPriceProvider.GetPriceAsync(segment.CountryCode, input.FuelType, cancellationToken);
+            var pricedFuelType = input.FuelType;
+            var quote = await fuelPriceProvider.GetPriceAsync(segment.CountryCode, pricedFuelType, cancellationToken);
+
+            if (quote is null && CountryCatalog.GetSubstituteGrade(segment.CountryCode, input.FuelType) is { } substitute)
+            {
+                quote = await fuelPriceProvider.GetPriceAsync(segment.CountryCode, substitute, cancellationToken);
+
+                if (quote is not null)
+                {
+                    pricedFuelType = substitute;
+                    warnings.Add($"{FuelTypeCatalog.GetDisplayName(input.FuelType)} is not sold in {segment.CountryCode}; priced as {FuelTypeCatalog.GetDisplayName(substitute)}.");
+                }
+            }
+
             decimal? localCost = null;
             decimal? convertedCost = null;
 
             if (quote is null)
             {
-                warnings.Add($"Missing fuel price for {segment.CountryCode} {FuelTypeCatalog.GetDisplayName(input.FuelType)}.");
+                warnings.Add($"Missing fuel price for {segment.CountryCode} {FuelTypeCatalog.GetDisplayName(input.FuelType)}; it is left out of the total.");
             }
             else
             {
@@ -41,7 +54,7 @@ public sealed class TripFuelCostCalculator
 
                 if (conversion is null)
                 {
-                    warnings.Add($"Missing FX rate from {quote.Currency} to {outputCurrency}; converted cost omitted for {segment.CountryCode}.");
+                    warnings.Add($"Missing FX rate from {quote.Currency} to {outputCurrency}; {segment.CountryCode} is left out of the total.");
                 }
                 else
                 {
@@ -52,7 +65,7 @@ public sealed class TripFuelCostCalculator
             segmentCosts.Add(new TripSegmentCost(
                 segment.CountryCode,
                 RoundDouble(segment.DistanceKm),
-                input.FuelType,
+                pricedFuelType,
                 RoundDouble(fuelLiters),
                 quote?.PricePerLiter,
                 quote?.Currency,
@@ -67,6 +80,10 @@ public sealed class TripFuelCostCalculator
         var totalFuel = totalDistance * input.NormalizedConsumptionLPer100Km / 100d;
         var totalCost = RoundMoney(segmentCosts.Sum(segment => segment.ConvertedCost ?? 0m));
         var fuelStops = CreateFuelStopEstimate(input, totalDistance, warnings);
+        var countriesMissingPrice = segmentCosts
+            .Where(segment => segment.ConvertedCost is null)
+            .Select(segment => segment.CountryCode)
+            .ToArray();
 
         return new TripEstimateResult(
             RoundDouble(totalDistance),
@@ -76,7 +93,10 @@ public sealed class TripFuelCostCalculator
             totalCost,
             segmentCosts,
             warnings.Distinct().ToArray(),
-            fuelStops);
+            fuelStops,
+            countriesMissingPrice.Length == 0,
+            countriesMissingPrice,
+            input.DurationMinutes is { } minutes ? RoundDouble(minutes) : null);
     }
 
     private static IReadOnlyList<CountryRouteSegment> AggregateByCountry(IReadOnlyList<CountryRouteSegment> segments)
@@ -126,16 +146,29 @@ public sealed class TripFuelCostCalculator
             startingFuelPercentage = 100d;
         }
 
+        var reservePercentage = input.ReservePercentage;
+
+        if (reservePercentage < 0 || reservePercentage >= 100)
+        {
+            warnings.Add("Reserve percentage must be at least 0 and below 100; using 15%.");
+            reservePercentage = 15d;
+        }
+
         var fullTankRange = input.TankSizeLiters.Value * 100d / input.NormalizedConsumptionLPer100Km;
         var startingRange = fullTankRange * startingFuelPercentage / 100d;
-        var remainingDistance = Math.Max(0d, totalDistanceKm - startingRange);
-        var estimatedStops = remainingDistance <= 0 ? 0 : (int)Math.Ceiling(remainingDistance / fullTankRange);
+        var reserveRange = fullTankRange * reservePercentage / 100d;
+        var usableRange = fullTankRange - reserveRange;
+        var startingUsableRange = Math.Max(0d, startingRange - reserveRange);
+        var remainingDistance = Math.Max(0d, totalDistanceKm - startingUsableRange);
+        var estimatedStops = remainingDistance <= 0 ? 0 : (int)Math.Ceiling(remainingDistance / usableRange);
 
         return new FuelStopEstimate(
             RoundDouble(input.TankSizeLiters.Value),
             RoundDouble(fullTankRange),
             RoundDouble(startingFuelPercentage),
             RoundDouble(startingRange),
+            RoundDouble(reservePercentage),
+            RoundDouble(usableRange),
             estimatedStops > 0,
             estimatedStops);
     }

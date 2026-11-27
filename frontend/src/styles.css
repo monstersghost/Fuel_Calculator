@@ -299,8 +299,20 @@ textarea:focus {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
+}
+
+.metric-note {
+  color: #9a3412;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.grade-note {
+  display: block;
+  color: #607086;
+  font-size: 0.78rem;
 }
 
 .metric-card {

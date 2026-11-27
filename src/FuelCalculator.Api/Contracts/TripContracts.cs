@@ -22,6 +22,9 @@ public sealed record EstimateTripRequest
 
     public double? CurrentFuelPercentage { get; init; }
 
+    /// <summary>Share of the tank to keep in hand when estimating refuels. Defaults to 15%.</summary>
+    public double? ReservePercentage { get; init; }
+
     public IReadOnlyList<ManualFuelPriceRequest> ManualFuelPrices { get; init; } = [];
 }
 
@@ -33,7 +36,8 @@ public sealed record ManualFuelPriceRequest
 
     public decimal PricePerLiter { get; init; }
 
-    public string Currency { get; init; } = "KWD";
+    /// <summary>Price currency. When blank, the country's local currency is used.</summary>
+    public string? Currency { get; init; }
 
     public DateOnly? EffectiveDate { get; init; }
 }

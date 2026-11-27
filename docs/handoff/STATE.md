@@ -1,6 +1,6 @@
 # Fuel Calculator - Project State
 
-**Last updated:** 2026-06-11
+**Last updated:** 2026-11-27 (correctness pass on branch `fix/correctness-pass`)
 
 ## Current MVP
 
@@ -15,13 +15,22 @@ The app estimates cross-border trip fuel usage and cost from route input, vehicl
 - Consumption normalization for L/100km, km/L, US MPG, UK MPG.
 - Mock route provider for local development.
 - Google Routes provider adapter behind `IRouteProvider`.
-- Approximate polyline country segmentation.
-- Manual fuel price overrides with precedence over seed data.
+- Polyline country segmentation, sampled every 5 km, using real borders (Natural Earth 1:50m, embedded,
+  35 countries from Egypt/Turkey to Pakistan; see `src/FuelCalculator.Core/Segmentation/Data/README.md`).
+  Points off the simplified coastline (causeways, coastal roads) snap to the nearest country within 25 km.
+- Manual fuel price overrides with precedence over seed data. A blank currency means the country's own.
+- `CountryCatalog`: local currency and the grades sold per country. A grade not sold (98 in SA, QA, BH, OM)
+  is priced as the nearest grade sold, with a warning.
+- Totals report `isTotalComplete` and `countriesMissingPrice`; a missing price is never silently 0.
+- Route duration is returned (`durationMinutes`).
+- Refuel estimate keeps a reserve (default 15%, `reservePercentage` in the request).
 - Static seed fuel prices for GCC-oriented development scenarios.
 - Static currency converter.
 - Optional tank size/current fuel estimate for minimum refuel stops.
 - In-memory vehicle profile storage and future vehicle data provider interface.
-- Console test runner covering core calculator behavior.
+- Console test runner covering core calculator behavior (22 tests).
+- CORS limited to `Cors:AllowedOrigins` (dev: `http://localhost:5173`); route errors are logged, not
+  echoed to the client; the short-link expander only accepts redirects that land on Google.
 
 ## Architecture Notes
 
@@ -45,7 +54,9 @@ npm.cmd run build
 
 - No persistent PostgreSQL/PostGIS database yet.
 - No station-level planning by design.
-- Fuel price seed data is not authoritative.
+- Fuel price seed data is not authoritative, and there is none for JO, SY, IQ or LB.
+- Cost is still charged where fuel is burned, not where it is bought (proposal C1: refuel planning).
+- The mock route draws straight lines; Kuwait→Muscat crosses open water off Sila and reports ~10 km UNKNOWN.
 - Static FX rates are MVP-only.
 - Frontend has no automated browser tests yet.
 - Google Maps shortened links are not expanded or resolved.

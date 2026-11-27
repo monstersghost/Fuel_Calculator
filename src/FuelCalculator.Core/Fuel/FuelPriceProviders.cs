@@ -24,7 +24,7 @@ public sealed class ManualFuelPriceProvider(IEnumerable<ManualFuelPriceOverride>
             NormalizeCountry(manualPrice.CountryCode),
             manualPrice.FuelType,
             manualPrice.PricePerLiter,
-            NormalizeCurrency(manualPrice.Currency),
+            NormalizeCurrency(manualPrice.Currency, manualPrice.CountryCode),
             "Manual",
             manualPrice.EffectiveDate,
             DateTimeOffset.UtcNow,
@@ -36,8 +36,10 @@ public sealed class ManualFuelPriceProvider(IEnumerable<ManualFuelPriceOverride>
 
     private static string NormalizeCountry(string countryCode) => countryCode.Trim().ToUpperInvariant();
 
-    private static string NormalizeCurrency(string currency) =>
-        string.IsNullOrWhiteSpace(currency) ? "KWD" : currency.Trim().ToUpperInvariant();
+    private static string NormalizeCurrency(string? currency, string countryCode) =>
+        string.IsNullOrWhiteSpace(currency)
+            ? CountryCatalog.GetLocalCurrency(countryCode) ?? "KWD"
+            : currency.Trim().ToUpperInvariant();
 }
 
 public sealed class StaticSeedFuelPriceProvider : IFuelPriceProvider
@@ -46,8 +48,9 @@ public sealed class StaticSeedFuelPriceProvider : IFuelPriceProvider
 
     public StaticSeedFuelPriceProvider()
     {
-        var fetchedAt = DateTimeOffset.UtcNow;
+        // Seed data was compiled for this date; report it as such so it never looks freshly fetched.
         var effectiveDate = new DateOnly(2026, 1, 1);
+        var fetchedAt = new DateTimeOffset(effectiveDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
         _prices = new Dictionary<(string CountryCode, FuelType FuelType), FuelPriceQuote>
         {

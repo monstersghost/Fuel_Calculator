@@ -19,20 +19,22 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        policy.AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowAnyOrigin();
+        policy.WithOrigins(allowedOrigins)
+            .WithHeaders("Content-Type")
+            .WithMethods("GET", "POST");
     });
 });
 
 builder.Services.AddSingleton<TripFuelCostCalculator>();
 builder.Services.AddSingleton<StaticSeedFuelPriceProvider>();
 builder.Services.AddSingleton<ICurrencyConverter, StaticCurrencyConverter>();
-builder.Services.AddSingleton<ICountryResolver, StaticBoundingBoxCountryResolver>();
+builder.Services.AddSingleton<ICountryResolver>(_ => PolygonCountryResolver.LoadEmbedded());
 builder.Services.AddSingleton<IRouteCountrySegmenter>(sp =>
 {
     var sampleEveryKm = builder.Configuration.GetValue<double?>("RouteSegmentation:SampleEveryKm") ?? 5d;
@@ -126,6 +128,7 @@ app.MapPost("/api/trips/estimate", async (
     [FromServices] IGoogleMapsLinkParser mapsLinkParser,
     [FromServices] IGoogleMapsLinkResolver mapsLinkResolver,
     [FromServices] TripFuelCostCalculator calculator,
+    [FromServices] ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
     var warnings = new List<string>();
@@ -154,11 +157,12 @@ app.MapPost("/api/trips/estimate", async (
                 normalizedRequest.Waypoints),
             cancellationToken);
     }
-    catch (Exception ex)
+    catch (Exception ex) when (ex is not OperationCanceledException)
     {
+        logger.LogError(ex, "Route calculation failed.");
         return Results.Problem(
             title: "Route calculation failed.",
-            detail: ex.Message,
+            detail: "The route provider could not calculate this route. Check the stops and try again.",
             statusCode: StatusCodes.Status502BadGateway);
     }
 
@@ -174,7 +178,11 @@ app.MapPost("/api/trips/estimate", async (
             normalizedRequest.NormalizedConsumptionLPer100Km,
             normalizedRequest.OutputCurrency,
             normalizedRequest.TankSizeLiters,
-            normalizedRequest.CurrentFuelPercentage),
+            normalizedRequest.CurrentFuelPercentage)
+        {
+            DurationMinutes = route.Duration?.TotalMinutes,
+            ReservePercentage = normalizedRequest.ReservePercentage
+        },
         fuelPriceProvider,
         currencyConverter,
         warnings,
@@ -263,6 +271,11 @@ static async Task<TripRequestValidationResult> ValidateTripRequestAsync(
         errors.Add("Current fuel percentage must be between 0 and 100.");
     }
 
+    if (request.ReservePercentage is < 0 or >= 100)
+    {
+        errors.Add("Reserve percentage must be at least 0 and below 100.");
+    }
+
     var manualPrices = new List<ManualFuelPriceOverride>();
 
     foreach (var manualPrice in request.ManualFuelPrices)
@@ -292,7 +305,7 @@ static async Task<TripRequestValidationResult> ValidateTripRequestAsync(
             manualPrice.CountryCode.Trim().ToUpperInvariant(),
             priceFuelType,
             manualPrice.PricePerLiter,
-            string.IsNullOrWhiteSpace(manualPrice.Currency) ? request.OutputCurrency : manualPrice.Currency.Trim().ToUpperInvariant(),
+            string.IsNullOrWhiteSpace(manualPrice.Currency) ? string.Empty : manualPrice.Currency.Trim().ToUpperInvariant(),
             manualPrice.EffectiveDate));
     }
 
@@ -312,6 +325,7 @@ static async Task<TripRequestValidationResult> ValidateTripRequestAsync(
         string.IsNullOrWhiteSpace(request.OutputCurrency) ? "KWD" : request.OutputCurrency.Trim().ToUpperInvariant(),
         request.TankSizeLiters,
         request.CurrentFuelPercentage,
+        request.ReservePercentage ?? 15d,
         manualPrices);
 
     return new TripRequestValidationResult(errors, normalized);
@@ -376,6 +390,7 @@ internal sealed record NormalizedTripRequest(
     string OutputCurrency,
     double? TankSizeLiters,
     double? CurrentFuelPercentage,
+    double ReservePercentage,
     IReadOnlyList<ManualFuelPriceOverride> ManualFuelPrices);
 
 internal sealed record TripRequestValidationResult(

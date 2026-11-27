@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Natural Earth 1:50m country borders cut to the region; see Segmentation/Data/README.md. -->
+    <EmbeddedResource Include="Segmentation\Data\region-countries.json" LogicalName="FuelCalculator.Core.region-countries.json" />
+  </ItemGroup>
+
 </Project>

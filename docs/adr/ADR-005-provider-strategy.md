@@ -19,7 +19,7 @@ Use provider interfaces for all external or replaceable data:
 |---------|-----------|--------------------|-----------------------|
 | Route calculation | `IRouteProvider` | `MockRouteProvider` | `GoogleRoutesProvider` with Google Routes API |
 | Country segmentation | `IRouteCountrySegmenter` | `PolylineCountrySegmenter` using sampled decoded polyline points | PostGIS route/polygon intersection |
-| Country lookup | `ICountryResolver` | `StaticBoundingBoxCountryResolver` | PostGIS or geocoding-backed resolver |
+| Country lookup | `ICountryResolver` | `PolygonCountryResolver` (Natural Earth 1:50m borders, embedded) | PostGIS or geocoding-backed resolver |
 | Fuel prices | `IFuelPriceProvider` | `ManualFuelPriceProvider`, `StaticSeedFuelPriceProvider` | Saudi Aramco, ADNOC, Qatar, GlobalPetrolPrices, official feeds |
 | FX conversion | `ICurrencyConverter` | `StaticCurrencyConverter` | Live FX provider |
 | Vehicle data | `IVehicleDataProvider` | `NullVehicleDataProvider` | FuelEconomy.gov or regional equivalent |

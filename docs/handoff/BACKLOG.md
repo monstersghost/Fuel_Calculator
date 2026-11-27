@@ -13,8 +13,10 @@
 ## P1 - Persistence and Geospatial Accuracy
 
 - Add PostgreSQL setup.
-- Add PostGIS country boundary tables.
-- Implement `IRouteCountryIntersectionSegmenter`.
+- Optional now: PostGIS country boundary tables and `IRouteCountryIntersectionSegmenter`. Embedded
+  Natural Earth polygons (`PolygonCountryResolver`) already split routes by real borders; PostGIS is only
+  needed for exact line/polygon intersection or regions outside the embedded box.
+- Refuel planning, border crossings and dated price data: see `docs/plans/2026-11-27-fuel-stops-borders-prices.md`.
 - Store vehicle profiles persistently.
 - Add migrations and database configuration documentation.
 
